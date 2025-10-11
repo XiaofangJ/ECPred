@@ -17,13 +17,13 @@ import java.util.Vector;
 
 public class seq2vectPSSMtest
 {
-  public static HashMap<String, Integer> blosum_dict1 = new HashMap();
-  public static Vector<String> lst_positive_ids = new Vector();
+  public static HashMap<String, Integer> blosum_dict1 = new HashMap<>();
+  public static Vector<String> lst_positive_ids = new Vector<>();
   
   public static HashMap<String, String> getFastaOrg(String file)
     throws IOException
   {
-    HashMap<String, String> fasta_dict = new HashMap();
+    HashMap<String, String> fasta_dict = new HashMap<>();
     String prot_id = "";
     String prot_seq = "";
     
@@ -62,7 +62,7 @@ public class seq2vectPSSMtest
   {
     String[] subseqArray = subseq.split("");
     String lst_subeqs = "";
-    Vector<String> v = new Vector();
+    Vector<String> v = new Vector<>();
     int count = 0;
     int total_subseqs = subseqArray.length - subseq_len + 1;
     while (count < total_subseqs)
@@ -104,32 +104,32 @@ public class seq2vectPSSMtest
     throws IOException
   {
     int s = 0;
-    Vector<Vector<Double>> result = new Vector();
-    Vector<Double> vector = new Vector();
-    Vector<Double> tmpvect = new Vector();
+    Vector<Vector<Double>> result = new Vector<>();
+    Vector<Double> vector = new Vector<>();
+    Vector<Double> tmpvect = new Vector<>();
     result.add(vector);
     int numConverted = 0;
-    HashMap<String, String> fasta_dict = new HashMap();
+    HashMap<String, String> fasta_dict = new HashMap<>();
     fasta_dict = getFastaOrg(filename);
     
     List<String> lines = Files.readAllLines(Paths.get(ROOTPATH + File.separator + ECNumber + "/spmap/profile.txt", new String[0]));
     int number_of_cluster = lines.size() / subseqlen;
-    HashMap<Integer, HashMap<Integer, ArrayList<String>>> pssm = new HashMap();
-    ArrayList<String> aa_list = new ArrayList();
-    HashMap<Integer, ArrayList<String>> cluster_ps_aa_dict2 = new HashMap();
+    HashMap<Integer, HashMap<Integer, ArrayList<String>>> pssm = new HashMap<>();
+    ArrayList<String> aa_list = new ArrayList<>();
+    HashMap<Integer, ArrayList<String>> cluster_ps_aa_dict2 = new HashMap<>();
     int count = 0;
     for (int ind2 = 1; ind2 <= number_of_cluster; ind2++)
     {
-      cluster_ps_aa_dict2 = new HashMap();
+      cluster_ps_aa_dict2 = new HashMap<>();
       for (int k = 1; k < subseqlen + 1; k++)
       {
-        aa_list = new ArrayList();
+        aa_list = new ArrayList<>();
         StringTokenizer st1 = new StringTokenizer(lines.get(count++), "\t");
         String list = null;
         while (st1.hasMoreElements()) {
           list = st1.nextToken();
         }
-        aa_list = new ArrayList(Arrays.asList(list.split("\\s*,\\s*")));
+        aa_list = new ArrayList<>(Arrays.asList(list.split("\\s*,\\s*")));
         cluster_ps_aa_dict2.put(Integer.valueOf(k), aa_list);
       }
       pssm.put(Integer.valueOf(ind2), cluster_ps_aa_dict2);
@@ -138,13 +138,13 @@ public class seq2vectPSSMtest
     {
       Vector<String> lst_subseqs = extractSubsequences(fasta_dict.get(targetList.get(s)), subseqlen);
       
-      vector = new Vector();
+      vector = new Vector<>();
       if (lst_subseqs.size() >= 6)
       {
         vector = calculateSignature(lst_subseqs.get(0), vector, pssm, subseqlen);
         for (int p = 1; p < lst_subseqs.size(); p++)
         {
-          tmpvect = new Vector();
+          tmpvect = new Vector<>();
           tmpvect = calculateSignature(lst_subseqs.get(p), tmpvect, pssm, subseqlen);
           for (int i = 1; i <= pssm.size(); i++) {
             if ((vector.get(i)).doubleValue() < (tmpvect.get(i)).doubleValue()) {
@@ -187,7 +187,7 @@ public class seq2vectPSSMtest
   {
     String aa_letters = "A,R,N,D,C,Q,E,G,H,I,L,K,M,F,P,S,T,W,Y,V";
     String[] lst_aa_letters = aa_letters.split(",");
-    HashMap<String, Integer> blosum_dict = new HashMap();
+    HashMap<String, Integer> blosum_dict = new HashMap<>();
     BufferedReader br = new BufferedReader(new FileReader("blo62.csv"));
     String[] blo62_mat = null;
     

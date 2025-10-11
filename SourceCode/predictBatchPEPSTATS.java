@@ -18,10 +18,10 @@ public class predictBatchPEPSTATS
     {
       Date d1 = new Date();
       
-      String path = ROOTPATH + File.separator + (String)ecnums.get(i) + File.separator + method;
+      String path = ROOTPATH + File.separator + ecnums.get(i) + File.separator + method;
       String modelfile = path + File.separator + "model.svm";
       String rangefile = path + File.separator + "rangefile";
-      String testpath = tempDir + File.separator + "testResult" + File.separator + time + File.separator + (String)ecnums.get(i) + File.separator + method;
+      String testpath = tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + method;
       
       String batchSVM = testpath + "/test.svm";
       String batchVect = testpath + "/test.vec";
@@ -30,8 +30,8 @@ public class predictBatchPEPSTATS
       
       fasta2Pepstats_noscale fas = new fasta2Pepstats_noscale();
       
-      String predFile = testpath + File.separator + (String)ecnums.get(i) + ".preds";
-      String confFile = testpath + File.separator + (String)ecnums.get(i) + ".confs";
+      String predFile = testpath + File.separator + ecnums.get(i) + ".preds";
+      String confFile = testpath + File.separator + ecnums.get(i) + ".confs";
       
       String posPredFile = path + File.separator + "ppreds.txt";
       String negPredFile = path + File.separator + "npreds.txt";

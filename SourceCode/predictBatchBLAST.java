@@ -23,7 +23,7 @@ import java.util.Vector;
 	  public static HashMap<String, String> getFasta(String path)
 	    throws IOException
 	  {
-	    HashMap<String, String> fasta_dict = new HashMap();
+	    HashMap<String, String> fasta_dict = new HashMap<>();
 	    String prot_id = "";
 	    String prot_seq = "";
 	    
@@ -59,10 +59,10 @@ import java.util.Vector;
 	    int evalue = 20;
 	    
 	    String method = "blast";
-	    HashMap<String, String> fasta_dict = new HashMap();
+	    HashMap<String, String> fasta_dict = new HashMap<>();
 	    for (int i = 0; i < ecnums.size(); i++)
 	    {
-	      HashMap<String, List<List<String>>> simHashHash = new HashMap();
+	      HashMap<String, List<List<String>>> simHashHash = new HashMap<>();
 	      
 	      String path = ROOTPATH + File.separator + ecnums.get(i) + File.separator + method;
 	      String testpath = tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + method;
@@ -118,7 +118,7 @@ import java.util.Vector;
 	        e.printStackTrace();
 	      }
 	      Blast blast = new Blast();
-	      Vector<Double> preds = new Vector();
+	      Vector<Double> preds = new Vector<>();
 	      
 	      List<String> blastLines = Files.readAllLines(Paths.get(cmdArray[8], new String[0]));
 	      if (blastLines.size() == 0)
@@ -128,7 +128,7 @@ import java.util.Vector;
 	      else
 	      {
 	        simHashHash = Blast.parseTabBlast(cmdArray[8]);
-	        preds = new Vector();
+	        preds = new Vector<>();
 	        for (int m = 0; m < test_ids.size(); m++)
 	        {
 	          double pred = Blast.blastknn(simHashHash.get(test_ids.get(m)), pos, neg, k);

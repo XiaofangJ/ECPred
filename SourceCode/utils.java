@@ -95,10 +95,10 @@ public class utils {
 		double fp = 0.0;
 		double roc = 0.0;
 		
-		Set set = vals.entrySet();
-	      Iterator it = set.iterator();
+		Set<Map.Entry<Integer, String>> set = vals.entrySet();
+	      Iterator<Map.Entry<Integer, String>> it = set.iterator();
 	      while(it.hasNext()) {
-	         Map.Entry me = (Map.Entry)it.next();
+	         Map.Entry<Integer, String> me = it.next();
 	         if(me.getValue().toString().substring(0, 1).equals("P"))
 	        	 tp+=1;
 	         else{

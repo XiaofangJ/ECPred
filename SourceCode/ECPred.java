@@ -18,25 +18,19 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.io.ObjectInputStream.GetField;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.Vector;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import javax.print.attribute.standard.Media;
 
 public class ECPred {
 
@@ -54,7 +48,7 @@ public class ECPred {
 	    Date d1 = new Date();
 	    long time = d1.getTime();
 	    String output = "";String tempDir = "";
-	    Vector<String> ecnums = new Vector();
+	    Vector<String> ecnums = new Vector<>();
 	    ecnums.add("1.-.-.-");ecnums.add("2.-.-.-");ecnums.add("3.-.-.-");
 	    ecnums.add("4.-.-.-");ecnums.add("5.-.-.-");ecnums.add("6.-.-.-");
 	    runEC runECobj = new runEC();

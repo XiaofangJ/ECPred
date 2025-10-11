@@ -21,8 +21,8 @@ public class fasta2Pepstats_noscale
     throws IOException
   {
     String irrel = "B,J,O,U,X,Z";
-    List<String> lst_irrel = new ArrayList(Arrays.asList(irrel.split(",")));
-    Vector<String> lines = new Vector();
+    List<String> lst_irrel = new ArrayList<>(Arrays.asList(irrel.split(",")));
+    Vector<String> lines = new Vector<>();
     for (int i = 0; i < single.size(); i++) {
       if ((i != 0) && (i != 1) && (i != 8) && (i != 9) && (i != 36) && (i != 37) && (i != 47))
       {
@@ -78,8 +78,8 @@ public class fasta2Pepstats_noscale
     BufferedReader br = new BufferedReader(new FileReader(infile));
     
     int count = 0;int vecCount = 0;
-    Vector<String> single = new Vector();
-    Vector<Vector<String>> vects = new Vector();
+    Vector<String> single = new Vector<>();
+    Vector<Vector<String>> vects = new Vector<>();
     String line;
     while ((line = br.readLine()) != null)
     {
@@ -94,13 +94,13 @@ public class fasta2Pepstats_noscale
           count++;
         }
         count = 0;
-        single = new Vector();
+        single = new Vector<>();
       }
       else if (count % 48 == 0)
       {
         vects.add(vecCount, parse_single(single));
         vecCount++;
-        single = new Vector();
+        single = new Vector<>();
         count = 0;
       }
     }
@@ -110,8 +110,8 @@ public class fasta2Pepstats_noscale
   public static Vector<String> allFasta(String ECNumber, String type)
     throws IOException
   {
-    HashMap<String, String> fasta_dict_test = new HashMap();
-    Vector<String> all_ids = new Vector();
+    HashMap<String, String> fasta_dict_test = new HashMap<>();
+    Vector<String> all_ids = new Vector<>();
     for (String key : fasta_dict_test.keySet()) {
       all_ids.add(key);
     }
@@ -128,7 +128,7 @@ public class fasta2Pepstats_noscale
       String f_l = "";
       f_l = "1 ";
       for (int j = 0; j < (vects.get(i)).size(); j++) {
-        f_l = f_l + (j + 1) + ":" + (String)(vects.get(i)).get(j) + " ";
+        f_l = f_l + (j + 1) + ":" + vects.get(i).get(j) + " ";
       }
       final_file.write(f_l + "\n");
     }

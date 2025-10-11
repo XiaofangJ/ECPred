@@ -51,7 +51,7 @@ public class runEC {
 		// Use the passed predictions map instead of creating a new one
 	    BufferedReader br = new BufferedReader(new FileReader(ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/subclasses/thresholds.txt"));
 	    
-	    HashMap<String, Double> thresholds = new HashMap();
+	    		HashMap<String, Double> thresholds = new HashMap<>();
 	    String line;
 	    while ((line = br.readLine()) != null)
 	    {
@@ -63,17 +63,17 @@ public class runEC {
 	    }
 	    for (int i = 0; i < ecnums.size(); i++)
 	    {
-	      String workdir = ROOTPATH + File.separator + (String)ecnums.get(i);
-	      String testDir = tempDir + File.separator + "testResult" + File.separator + time + File.separator + (String)ecnums.get(i) + File.separator + "preds";
+	      String workdir = ROOTPATH + File.separator + ecnums.get(i);
+	      String testDir = tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + "preds";
 	      File folder1 = new File(testDir);
 	      folder1.mkdirs();
 
 	      for (final File fileEntry : folder1.listFiles()) 
 				fileEntry.delete();
-	      Vector<String> combined = new Vector();
+	      Vector<String> combined = new Vector<>();
 	      if (method.equals("spmap"))
 	      {
-	    	  List<String> spreds = Files.readAllLines(Paths.get(tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + "spmap" + File.separator + (String)ecnums.get(i) + ".confs", new String[0]));
+	    	  List<String> spreds = Files.readAllLines(Paths.get(tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + "spmap" + File.separator + ecnums.get(i) + ".confs", new String[0]));
 	        for (int j = 0; j < spreds.size(); j++)
 	        {
 	          Double comb = Double.valueOf(Double.parseDouble(spreds.get(j)));
@@ -82,7 +82,7 @@ public class runEC {
 	      }
 	      else if (method.equals("blast"))
 	      {
-	    	  List<String> bpreds = Files.readAllLines(Paths.get(tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + "blast" + File.separator + (String)ecnums.get(i) + ".confs", new String[0]));
+	    	  List<String> bpreds = Files.readAllLines(Paths.get(tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + "blast" + File.separator + ecnums.get(i) + ".confs", new String[0]));
 	        for (int j = 0; j < bpreds.size(); j++)
 	        {
 	          Double comb = Double.valueOf(Double.parseDouble(bpreds.get(j)));
@@ -91,7 +91,7 @@ public class runEC {
 	      }
 	      else if (method.equals("pepstats"))
 	      {
-	    	  List<String> ppreds = Files.readAllLines(Paths.get(tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + "pepstats" + File.separator + (String)ecnums.get(i) + ".confs", new String[0]));
+	    	  List<String> ppreds = Files.readAllLines(Paths.get(tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + "pepstats" + File.separator + ecnums.get(i) + ".confs", new String[0]));
 	        for (int j = 0; j < ppreds.size(); j++)
 	        {
 	          Double comb = Double.valueOf(Double.parseDouble(ppreds.get(j)));
@@ -113,14 +113,14 @@ public class runEC {
 	        }
 	        for (int j = 0; j < idlist.size(); j++)
 	        {
-	          BufferedWriter final_file1 = new BufferedWriter(new FileWriter(testDir + File.separator + (String)idlist.get(j) + ".preds", true));
+	          BufferedWriter final_file1 = new BufferedWriter(new FileWriter(testDir + File.separator + idlist.get(j) + ".preds", true));
 	          final_file1.write(ecnums.get(i) + "\t" + spreds.get(j) + "\t" + bpreds.get(j) + "\t" + ppreds.get(j) + "\t" + combined.get(j) + "\n");
 	          final_file1.close();
 	        }
 	      }
 	      DecimalFormat df = new DecimalFormat();
 	      df.setMaximumFractionDigits(2);
-	      BufferedWriter final_file = new BufferedWriter(new FileWriter(tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + (String)ecnums.get(i) + "_preds.txt", false));
+	      BufferedWriter final_file = new BufferedWriter(new FileWriter(tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + ecnums.get(i) + "_preds.txt", false));
 	      for (int j = 0; j < idlist.size(); j++) {
 	        final_file.write(df.format(Double.parseDouble(combined.get(j))) + "\n");
 	      }
@@ -131,7 +131,7 @@ public class runEC {
 			for (int i =0; i< ecnums.size(); i++) {  
 				String workdir = ROOTPATH+File.separator+ecnums.get(i);
 				Vector<String> pred = new Vector<>();
-				br = new BufferedReader(new FileReader(tempDir + File.separator + "testResult" + File.separator + time + File.separator + (String)ecnums.get(i) + File.separator + (String)ecnums.get(i) + "_preds.txt"));					while((line = br.readLine())!=null){
+				br = new BufferedReader(new FileReader(tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + ecnums.get(i) + "_preds.txt"));					while((line = br.readLine())!=null){
 						pred.add(line);
 					}
 				allPreds.add( pred);
@@ -180,7 +180,7 @@ public class runEC {
 			String predClass ="";
 			Vector<String> preds = new Vector<>();
 			for (int i = 0; i< ecnums.size(); i++) {  
-				List<String> pred = Files.readAllLines(Paths.get(tempDir + File.separator + "testResult" + File.separator + time + File.separator + (String)ecnums.get(i) + File.separator + (String)ecnums.get(i) + "_preds.txt", new String[0]));
+				List<String> pred = Files.readAllLines(Paths.get(tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + ecnums.get(i) + "_preds.txt", new String[0]));
 				predClass = ecnums.get(i);
 				if(Double.parseDouble(pred.get(0)) >=  thresholds.get(predClass)){
 					if(Double.parseDouble(pred.get(0)) > maxPred) {
