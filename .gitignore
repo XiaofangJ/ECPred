@@ -1,0 +1,18 @@
+# Compiled Java classes
+*.class
+
+# Temporary directories
+temp/
+testResult/
+
+# Test output files (except the original results.tsv)
+test*.tsv
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# OS generated files
+.DS_Store
+Thumbs.db

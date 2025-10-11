@@ -21,7 +21,7 @@ import java.util.Vector;
 
 public class runEC {
 
-	public HashMap<String, HashMap<String, Double>> predictions(String[] args, String ROOTPATH, Vector<String> ecnums, long time, HashMap<String, HashMap<String, Double>> predictions, List<String> idlist, String fastaFile, String tempDir, String method) throws IOException, InterruptedException{	
+	public HashMap<String, Vector<Vector<String>>> predictions(String[] args, String ROOTPATH, Vector<String> ecnums, long time, HashMap<String, Vector<Vector<String>>> predictions, List<String> idlist, String fastaFile, String tempDir, String method) throws IOException, InterruptedException{	
 	if (method.equals("spmap"))
 	    {
 	      predictBatchSPMAP obj = new predictBatchSPMAP();
@@ -48,7 +48,7 @@ public class runEC {
 	      predictBatchPEPSTATS obj3 = new predictBatchPEPSTATS();
 	      predictBatchPEPSTATS.main(args, ecnums, time, ROOTPATH, fastaFile, tempDir);
 	    }
-		HashMap<String, Double> NHpredictions = new HashMap<>();
+		// Use the passed predictions map instead of creating a new one
 	    BufferedReader br = new BufferedReader(new FileReader(ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/subclasses/thresholds.txt"));
 	    
 	    HashMap<String, Double> thresholds = new HashMap();
@@ -139,41 +139,43 @@ public class runEC {
 			}
 			
 			for(int i=0 ; i < idlist.size(); i++){
-				NHpredictions = new HashMap<>();
 				Vector<Vector<String>> predswithScore = new Vector<>();
 				Vector<String> preds = new Vector<>();
 				double maxPred =0.0;
 				String mainClass = null ;
 				for(int j = 0 ; j < allPreds.size(); j++){
 					if(Double.parseDouble(allPreds.get(j).get(i)) >= thresholds.get(String.valueOf((j+1)) + ".-.-.-")) {
-						NHpredictions.put(String.valueOf((j+1)) + ".-.-.-", Double.valueOf(allPreds.get(j).get(i)));
+						// We found a prediction above threshold
 					}						
-					predictions.put(idlist.get(i) , NHpredictions);
 					if(Double.parseDouble(allPreds.get(j).get(i))> maxPred){
 						maxPred = Double.parseDouble(allPreds.get(j).get(i));
 						mainClass = String.valueOf((j+1)) + ".-.-.-";
 					}	
 				}
 				if(maxPred<0.4){
+					preds.add("non");
+					preds.add(String.valueOf(1.0-maxPred));
 					predswithScore.add(preds);
-					NHpredictions.put("non", maxPred);
-					predictions.put(idlist.get(i) , NHpredictions);
+					predictions.put(idlist.get(i), predswithScore);
 				}
 				else if (maxPred >= thresholds.get(mainClass)){
 					preds.add(mainClass);
 					preds.add(String.valueOf(maxPred));
 					predswithScore.add(preds);
-					predictions.put(idlist.get(i) , NHpredictions);
+					predictions.put(idlist.get(i), predswithScore);
 				}
 				else{
-					NHpredictions.put("nop", Double.valueOf("0"));
-					predictions.put(idlist.get(i) , NHpredictions);
+					preds.add("nop");
+					preds.add("0");
+					predswithScore.add(preds);
+					predictions.put(idlist.get(i), predswithScore);
 				}
 					
 			}
 		}
 		
 		else{
+			// This is a subclass prediction - add to existing prediction
 			double maxPred = 0.0;
 			String predClass ="";
 			Vector<String> preds = new Vector<>();
@@ -181,8 +183,26 @@ public class runEC {
 				List<String> pred = Files.readAllLines(Paths.get(tempDir + File.separator + "testResult" + File.separator + time + File.separator + (String)ecnums.get(i) + File.separator + (String)ecnums.get(i) + "_preds.txt", new String[0]));
 				predClass = ecnums.get(i);
 				if(Double.parseDouble(pred.get(0)) >=  thresholds.get(predClass)){
-					predictions.get(idlist.get(0)).put(predClass, Double.valueOf(pred.get(0)));
+					if(Double.parseDouble(pred.get(0)) > maxPred) {
+						maxPred = Double.parseDouble(pred.get(0));
+						preds = new Vector<>();
+						preds.add(predClass);
+						preds.add(pred.get(0));
+					}
 				}
+			}
+			if(preds.size() == 0) {
+				preds.add("nop");
+				preds.add("0");
+			}
+			
+			// Add this prediction to the existing protein's prediction vector
+			if(predictions.containsKey(idlist.get(0))) {
+				predictions.get(idlist.get(0)).add(preds);
+			} else {
+				Vector<Vector<String>> predswithScore = new Vector<>();
+				predswithScore.add(preds);
+				predictions.put(idlist.get(0), predswithScore);
 			}
 		}
 		return predictions;

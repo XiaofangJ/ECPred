@@ -158,18 +158,39 @@ public class ECPred {
 					    	  continue;
 				    	  }
 				    	  for(int i=0; i<4; i++){
-				    		  if(entry.getValue().get(i).get(0).equals("nop")){
-				    			  predFile.print("\t"+entry.getValue().get(i-1).get(0)+"\t"+entry.getValue().get(i-1).get(1));
+				    		  if(i < entry.getValue().size() && entry.getValue().get(i).get(0).equals("nop")){
+				    			  if(i > 0) {
+				    				  predFile.print("\t"+entry.getValue().get(i-1).get(0)+"\t"+entry.getValue().get(i-1).get(1));
+				    			  } else {
+				    				  predFile.print("\tnop\t0");
+				    			  }
 				    			  flag = true;
 						    	  break;
+				    		  }
+				    		  else if(i >= entry.getValue().size()) {
+				    			  // Not enough prediction levels, use the last available one
+				    			  if(entry.getValue().size() > 0) {
+				    				  predFile.print("\t"+entry.getValue().get(entry.getValue().size()-1).get(0)+"\t"+entry.getValue().get(entry.getValue().size()-1).get(1));
+				    			  } else {
+				    				  predFile.print("\tnop\t0");
+				    			  }
+				    			  flag = true;
+				    			  break;
 				    		  }
 				    		  else
 				    			  continue;
 					    	 
 					    	  
 				    	  }
-				    	  if(flag == false)
-				    		  predFile.print("\t"+entry.getValue().get(3).get(0)+"\t"+entry.getValue().get(3).get(1));
+				    	  if(flag == false) {
+				    		  if(entry.getValue().size() > 3) {
+				    			  predFile.print("\t"+entry.getValue().get(3).get(0)+"\t"+entry.getValue().get(3).get(1));
+				    		  } else if(entry.getValue().size() > 0) {
+				    			  predFile.print("\t"+entry.getValue().get(entry.getValue().size()-1).get(0)+"\t"+entry.getValue().get(entry.getValue().size()-1).get(1));
+				    		  } else {
+				    			  predFile.print("\tnop\t0");
+				    		  }
+				    	  }
 	  
 				    	  predFile.println();
 							
@@ -199,18 +220,39 @@ public class ECPred {
 					    	  continue;
 				    	  }
 				    	  for(int i=0; i<4; i++){
-				    		  if(entry.getValue().get(i).get(0).equals("nop")){
-				    			  System.out.print(entry.getValue().get(i-1).get(0)+"\t"+entry.getValue().get(i-1).get(1));
+				    		  if(i < entry.getValue().size() && entry.getValue().get(i).get(0).equals("nop")){
+				    			  if(i > 0) {
+				    				  System.out.print(entry.getValue().get(i-1).get(0)+"\t"+entry.getValue().get(i-1).get(1));
+				    			  } else {
+				    				  System.out.print("nop\t0");
+				    			  }
 				    			  flag = true;
 						    	  break;
+				    		  }
+				    		  else if(i >= entry.getValue().size()) {
+				    			  // Not enough prediction levels, use the last available one
+				    			  if(entry.getValue().size() > 0) {
+				    				  System.out.print(entry.getValue().get(entry.getValue().size()-1).get(0)+"\t"+entry.getValue().get(entry.getValue().size()-1).get(1));
+				    			  } else {
+				    				  System.out.print("nop\t0");
+				    			  }
+				    			  flag = true;
+				    			  break;
 				    		  }
 				    		  else
 				    			  continue;
 					    	 
 					    	  
 				    	  }
-				    	  if(flag == false)
-				    		  System.out.print(entry.getValue().get(3).get(0)+"\t"+entry.getValue().get(3).get(1));
+				    	  if(flag == false) {
+				    		  if(entry.getValue().size() > 3) {
+				    			  System.out.print(entry.getValue().get(3).get(0)+"\t"+entry.getValue().get(3).get(1));
+				    		  } else if(entry.getValue().size() > 0) {
+				    			  System.out.print(entry.getValue().get(entry.getValue().size()-1).get(0)+"\t"+entry.getValue().get(entry.getValue().size()-1).get(1));
+				    		  } else {
+				    			  System.out.print("nop\t0");
+				    		  }
+				    	  }
 	  
 				    	  	System.out.println();
 							}
