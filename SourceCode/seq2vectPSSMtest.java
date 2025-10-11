@@ -17,6 +17,9 @@ import java.util.Vector;
 
 public class seq2vectPSSMtest
 {
+  private static final int MAX_PROTEIN_ID_LENGTH = 80;
+  private static final int MIN_SUBSEQUENCE_COUNT = 6;
+  
   public static HashMap<String, Integer> blosum_dict1 = new HashMap<>();
   public static Vector<String> lst_positive_ids = new Vector<>();
   
@@ -37,8 +40,8 @@ public class seq2vectPSSMtest
         StringTokenizer st1 = new StringTokenizer(line, "|");
         line = line.replaceAll("/", "");
         line = line.trim().replaceAll(" +", "");
-        if (line.length() > 80) {
-          prot_id = line.substring(1, 81);
+        if (line.length() > MAX_PROTEIN_ID_LENGTH) {
+          prot_id = line.substring(1, MAX_PROTEIN_ID_LENGTH + 1);
         } else {
           prot_id = line.substring(1, line.length());
         }
@@ -139,7 +142,7 @@ public class seq2vectPSSMtest
       Vector<String> lst_subseqs = extractSubsequences(fasta_dict.get(targetList.get(s)), subseqlen);
       
       vector = new Vector<>();
-      if (lst_subseqs.size() >= 6)
+      if (lst_subseqs.size() >= MIN_SUBSEQUENCE_COUNT)
       {
         vector = calculateSignature(lst_subseqs.get(0), vector, pssm, subseqlen);
         for (int p = 1; p < lst_subseqs.size(); p++)

@@ -311,7 +311,7 @@ public class ECPred {
 				   prot_id  = line.substring(1, line.length());
 			 protID_Full.put(prot_id, orjinal_line);
 			line = br.readLine();
-		    while(line.startsWith(">")==false){//until > add sequence 
+		    while(line.startsWith(">")==false){ // Read sequence lines
 		    	 fastaString+=line;
 				line = br.readLine();
 				if(line==null)

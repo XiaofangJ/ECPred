@@ -9,6 +9,9 @@ import java.util.Vector;
 
 public class predictBatchPEPSTATS
 {
+  private static final String EMBOSS_VERSION = "EMBOSS-6.5.7";
+  private static final String LIBSVM_VERSION = "libsvm-3.16";
+  
   public static void main(String[] args, Vector<String> ecnums, long time, String ROOTPATH, String fastaFile, String tempDir)
     throws IOException, InterruptedException
   {
@@ -37,7 +40,7 @@ public class predictBatchPEPSTATS
       String negPredFile = path + File.separator + "npreds.txt";
       String[] cmdArray = new String[7];
       
-      cmdArray[0] = (ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/EMBOSS-6.5.7/emboss/pepstats");
+      cmdArray[0] = (ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/" + EMBOSS_VERSION + "/emboss/pepstats");
       
       cmdArray[1] = "-sequence";
       
@@ -51,7 +54,7 @@ public class predictBatchPEPSTATS
       
       cmdArray[6] = "FALSE";
       
-      String cmd = ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/EMBOSS-6.5.7/emboss/pepstats -sequence " + fastaFile + " -outfile " + workdir + "/temp.out -warning FALSE";
+      String cmd = ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/" + EMBOSS_VERSION + "/emboss/pepstats -sequence " + fastaFile + " -outfile " + workdir + "/temp.out -warning FALSE";
       ProcessBuilder pb = new ProcessBuilder(cmd.split(" "));
       
       Process process = pb.start();
@@ -71,7 +74,7 @@ public class predictBatchPEPSTATS
       cmdArray = new String[1];
       PrintWriter scalefile = new PrintWriter(tempDir + File.separator + "testResult" + File.separator + time + File.separator + time + ".sh", "UTF-8");
       scalefile.println("#!/bin/bash");
-      scalefile.println(ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/libsvm-3.16/svm-scale -r " + ROOTPATH + "/" + ecnums.get(i) + "/pepstats/rangefile " + batchSVM + " > " + batchVect + " 2> /dev/null");
+      scalefile.println(ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/" + LIBSVM_VERSION + "/svm-scale -r " + ROOTPATH + "/" + ecnums.get(i) + "/pepstats/rangefile " + batchSVM + " > " + batchVect + " 2> /dev/null");
       scalefile.close();
       cmd = "chmod +x " + tempDir + File.separator + "testResult" + File.separator + time + File.separator + time + ".sh";
       pb = new ProcessBuilder(cmd.split(" "));

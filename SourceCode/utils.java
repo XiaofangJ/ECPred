@@ -25,9 +25,16 @@ import java.util.Vector;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
-import org.w3c.dom.views.DocumentView;
-
 public class utils {
+
+	/**
+	 * Helper method to create a Vector with a single double value
+	 */
+	private static Vector<Double> createSingleValueVector(double value) {
+		Vector<Double> v = new Vector<>();
+		v.add(value);
+		return v;
+	}
 
 	public static HashMap<String, Vector<Double>> calculateMeasures(double threshold, int alpha, Vector<Double> ppreds, Vector<Double> npreds){
 		double tp = 0.0;
@@ -54,39 +61,23 @@ public class utils {
 		}
 		result.put("ppreds", ppreds);
 		result.put("npreds", npreds);
-		Vector<Double> v = new Vector<>();
-		v.add(tp);
-		result.put("tp", v);
-		v= new Vector<>();
-		v.add(fp);
-		result.put("fp", v);
-		v= new Vector<>();
-		v.add(tn);
-		result.put("tn", v);
-		v= new Vector<>();
-		v.add(fn);
-		result.put("fn", v);
-		v= new Vector<>();
+		result.put("tp", createSingleValueVector(tp));
+		result.put("fp", createSingleValueVector(fp));
+		result.put("tn", createSingleValueVector(tn));
+		result.put("fn", createSingleValueVector(fn));
+		
 		double recall = tp*1.0/(tp+fn);
-		v.add(recall);
-		result.put("recall", v);
-		v= new Vector<>();
+		result.put("recall", createSingleValueVector(recall));
+		
 		double precision = tp*1.0/(tp+fp);
-		v.add(precision);
-		result.put("precision", v);
-		v= new Vector<>();
-		v.add(tn*1.0/(tn+fp));
-		result.put("specificity", v);
-		v= new Vector<>();
-		v.add(tp*1.0/(tp+fn));
-		result.put("sensitivity", v);
-		v= new Vector<>();
-		v.add((1+alpha)*(precision * recall)/(alpha*precision+recall));
-		result.put("fone", v);
+		result.put("precision", createSingleValueVector(precision));
+		
+		result.put("specificity", createSingleValueVector(tn*1.0/(tn+fp)));
+		result.put("sensitivity", createSingleValueVector(tp*1.0/(tp+fn)));
+		result.put("fone", createSingleValueVector((1+alpha)*(precision * recall)/(alpha*precision+recall)));
+		
 		Double auc = roc_score(ppreds, npreds);
-		v= new Vector<>();
-		v.add(auc);
-		result.put("auc", v);
+		result.put("auc", createSingleValueVector(auc));
 	      return result;
 	}
 
@@ -133,7 +124,6 @@ public class utils {
 			vals.put(count, x);
 			count++;
 		}
-		System.out.println(vals);
 		vals = sortByComparator(vals, true);
 		return roc_score_aux(vals);
 		
