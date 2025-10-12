@@ -1,20 +1,13 @@
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.StringTokenizer;
-import java.util.Vector;
-import java.util.concurrent.*;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Vector;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 
 public class predictBatchSPMAP {
 
@@ -23,7 +16,6 @@ public class predictBatchSPMAP {
 		  {
 		    int sigTh = -15;
 		    int subseqlen = 5;
-		    String predictProg = ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/svmlight/svm_classify";
 		    String method = "spmap";
 		    
 		    // Parallelize EC processing
@@ -53,25 +45,23 @@ public class predictBatchSPMAP {
 		          String posPredFile = path + File.separator + "ppreds.txt";
 		          String negPredFile = path + File.separator + "npreds.txt";
 		          
-		          seq2vectPSSMtest seqtest = new seq2vectPSSMtest();
-		          
 		          seq2vectPSSMtest.calculateVectors(sigTh, subseqlen, ecnum, test_ids, fastaFile, time, ROOTPATH, tempDir);
 		          
-		          String cmd = predictProg + " " + batchVect + " " + modelfile + " " + predFile;
-		          ProcessBuilder pb = new ProcessBuilder(cmd.split(" "));
-		          Process process = pb.start();
-		          try
-		          {
-		            process.waitFor();
-		            int exitVal = process.exitValue();
+		          Path batchVectPath = Paths.get(batchVect);
+		          if (Files.notExists(batchVectPath) || Files.size(batchVectPath) == 0) {
+		            System.err.println("Warning: Skipping SPMAP classification for EC " + ecnum + " due to empty feature vector file.");
+		            return null;
 		          }
-		          catch (InterruptedException e)
-		          {
-		            System.out.print("Svm_classify is not working!");
-		            e.printStackTrace();
+		          
+		          // Use in-JVM SVM classifier instead of external process
+		          SVMLightClassifier.classify(batchVect, modelfile, predFile);
+		          
+		          Path predictionPath = Paths.get(predFile);
+		          if (Files.exists(predictionPath) && Files.size(predictionPath) > 0) {
+		            utils.calculateConfidence(posPredFile, negPredFile, predFile, confFile);
+		          } else {
+		            System.err.println("Warning: Missing prediction output for EC " + ecnum + ", skipping confidence calculation.");
 		          }
-		          utils u = new utils();
-		          utils.calculateConfidence(posPredFile, negPredFile, predFile, confFile);
 		        } catch (Exception e) {
 		          System.err.println("Error processing EC " + ecnum + " in SPMAP: " + e.getMessage());
 		          e.printStackTrace();

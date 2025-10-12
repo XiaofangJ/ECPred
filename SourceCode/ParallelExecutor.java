@@ -24,12 +24,12 @@ public class ParallelExecutor {
     private static int userCpuCount = Runtime.getRuntime().availableProcessors();
     private static int proteinLevelThreads = userCpuCount;
     private static final int METHOD_LEVEL_THREADS = 3; // BLAST, SPMAP, PEPSTATS
-    private static int ecClassLevelThreads = userCpuCount;
+    private static int ecClassLevelThreads = Math.max(1, userCpuCount / 2);
     
     private ParallelExecutor() {
         // Set thread counts from current userCpuCount
         proteinLevelThreads = userCpuCount;
-    ecClassLevelThreads = userCpuCount;
+    ecClassLevelThreads = Math.max(1, userCpuCount / 2);
 
         // Create thread pools with appropriate sizes
         this.proteinLevelExecutor = Executors.newFixedThreadPool(
@@ -209,6 +209,6 @@ public class ParallelExecutor {
     public static void setUserCpuCount(int cpuCount) {
         userCpuCount = cpuCount;
         proteinLevelThreads = userCpuCount;
-        ecClassLevelThreads = Math.max(2, userCpuCount / 2);
+        ecClassLevelThreads = Math.max(1, userCpuCount / 2);
     }
 }

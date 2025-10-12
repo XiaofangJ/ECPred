@@ -1,27 +1,37 @@
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.StringTokenizer;
-import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class seq2vectPSSMtest
 {
   private static final int MAX_PROTEIN_ID_LENGTH = 80;
   private static final int MIN_SUBSEQUENCE_COUNT = 6;
+  private static final int[] AA_INDEX = new int[26];
+  private static final int AA_COUNT = 20;
+  private static final String AA_ORDER = "ARNDCQEGHILKMFPSTWYV";
+  private static final ConcurrentHashMap<String, Map<String, String>> FASTA_CACHE = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, PSSMProfile> PSSM_CACHE = new ConcurrentHashMap<>();
   
-  public static HashMap<String, Integer> blosum_dict1 = new HashMap<>();
-  public static Vector<String> lst_positive_ids = new Vector<>();
+  static {
+    Arrays.fill(AA_INDEX, -1);
+    for (int i = 0; i < AA_ORDER.length(); i++) {
+      AA_INDEX[AA_ORDER.charAt(i) - 'A'] = i;
+    }
+  }
   
   public static HashMap<String, String> getFastaOrg(String file)
     throws IOException
@@ -61,128 +71,215 @@ public class seq2vectPSSMtest
     return fasta_dict;
   }
   
-  public static Vector<String> extractSubsequences(String subseq, int subseq_len)
-  {
-    String[] subseqArray = subseq.split("");
-    String lst_subeqs = "";
-    Vector<String> v = new Vector<>();
-    int count = 0;
-    int total_subseqs = subseqArray.length - subseq_len + 1;
-    while (count < total_subseqs)
-    {
-      lst_subeqs = subseqArray[count] + subseqArray[(count + 1)] + subseqArray[(count + 2)] + subseqArray[(count + 3)] + subseqArray[(count + 4)];
-      v.add(lst_subeqs);
-      count++;
-    }
-    return v;
-  }
-  
-  public static Vector<Double> calculateSignature(String string, Vector<Double> vector, HashMap<Integer, HashMap<Integer, ArrayList<String>>> pssm, int subseqlen)
-  {
-    double sum = 0.0D;
-    String aa_letters = "A,R,N,D,C,Q,E,G,H,I,L,K,M,F,P,S,T,W,Y,V";
-    String[] lst_aa_letters = aa_letters.split(",");
-    vector.add(Double.valueOf(0.0D));
-    if ((string.contains("X")) || (string.contains("B")) || (string.contains("Z")) || (string.contains("U")) || (string.contains("O")) || (string.contains("J")))
-    {
-      for (int p = 1; p <= pssm.size(); p++) {
-        vector.add(Double.valueOf(sum));
-      }
-      return vector;
-    }
-    for (int p = 1; p <= pssm.size(); p++)
-    {
-      sum = 0.0D;
-      for (int i = 1; i < subseqlen + 1; i++)
-      {
-        double x = Double.parseDouble(((pssm.get(Integer.valueOf(p))).get(Integer.valueOf(i))).get(Arrays.asList(lst_aa_letters).indexOf(string.substring(i - 1, i)) * 2 + 1));
-        sum += x;
-      }
-      vector.add(Double.valueOf(sum));
-    }
-    return vector;
-  }
-  
   public static float calculateVectors(int signifThreshold, int subseqlen, String ECNumber, List<String> targetList, String filename, long time, String ROOTPATH, String tempDir)
     throws IOException
   {
-    int s = 0;
-    Vector<Vector<Double>> result = new Vector<>();
-    Vector<Double> vector = new Vector<>();
-    Vector<Double> tmpvect = new Vector<>();
-    result.add(vector);
-    int numConverted = 0;
-    HashMap<String, String> fasta_dict = new HashMap<>();
-    fasta_dict = getFastaOrg(filename);
-    
-    List<String> lines = Files.readAllLines(Paths.get(ROOTPATH + File.separator + ECNumber + "/spmap/profile.txt", new String[0]));
-    int number_of_cluster = lines.size() / subseqlen;
-    HashMap<Integer, HashMap<Integer, ArrayList<String>>> pssm = new HashMap<>();
-    ArrayList<String> aa_list = new ArrayList<>();
-    HashMap<Integer, ArrayList<String>> cluster_ps_aa_dict2 = new HashMap<>();
-    int count = 0;
-    for (int ind2 = 1; ind2 <= number_of_cluster; ind2++)
+    Map<String, String> fastaDict = getCachedFasta(filename);
+    PSSMProfile profile = getCachedPSSMProfile(ROOTPATH, ECNumber, subseqlen);
+    if (profile == null) {
+      return 0.0F;
+    }
+
+    List<double[]> vectors = new ArrayList<>();
+    for (String targetId : targetList)
     {
-      cluster_ps_aa_dict2 = new HashMap<>();
-      for (int k = 1; k < subseqlen + 1; k++)
+      String sequence = fastaDict.get(targetId);
+      if (sequence == null || sequence.length() < subseqlen) {
+        continue;
+      }
+
+      double[] bestScores = computeBestScores(sequence, profile, subseqlen);
+      if (bestScores == null) {
+        continue;
+      }
+
+      applySignificanceThreshold(bestScores, signifThreshold, subseqlen);
+      vectors.add(bestScores);
+    }
+
+    writeVectors(ECNumber, vectors, time, tempDir);
+    return 0.0F;
+  }
+  
+  private static Map<String, String> getCachedFasta(String filename) throws IOException {
+    Map<String, String> cached = FASTA_CACHE.get(filename);
+    if (cached != null) {
+      return cached;
+    }
+    Map<String, String> loaded = Collections.unmodifiableMap(getFastaOrg(filename));
+    Map<String, String> existing = FASTA_CACHE.putIfAbsent(filename, loaded);
+    return existing != null ? existing : loaded;
+  }
+
+  private static PSSMProfile getCachedPSSMProfile(String ROOTPATH, String ECNumber, int subseqlen) throws IOException {
+    PSSMProfile cached = PSSM_CACHE.get(ECNumber);
+    if (cached != null) {
+      return cached;
+    }
+    PSSMProfile profile = loadPSSMProfile(ROOTPATH, ECNumber, subseqlen);
+    if (profile == null) {
+      return null;
+    }
+    PSSMProfile existing = PSSM_CACHE.putIfAbsent(ECNumber, profile);
+    return existing != null ? existing : profile;
+  }
+
+  private static PSSMProfile loadPSSMProfile(String ROOTPATH, String ECNumber, int subseqlen)
+    throws IOException
+  {
+    Path profilePath = Paths.get(ROOTPATH + File.separator + ECNumber + "/spmap/profile.txt", new String[0]);
+    if (!Files.exists(profilePath)) {
+      return null;
+    }
+
+    List<String> lines = Files.readAllLines(profilePath);
+    if (lines.isEmpty()) {
+      return null;
+    }
+
+    int numberOfCluster = lines.size() / subseqlen;
+    double[][][] weights = new double[numberOfCluster][subseqlen][AA_COUNT];
+    int count = 0;
+
+    for (int cluster = 0; cluster < numberOfCluster; cluster++)
+    {
+      for (int position = 0; position < subseqlen; position++)
       {
-        aa_list = new ArrayList<>();
-        StringTokenizer st1 = new StringTokenizer(lines.get(count++), "\t");
+        String line = lines.get(count++);
+        StringTokenizer st1 = new StringTokenizer(line, "\t");
         String list = null;
         while (st1.hasMoreElements()) {
           list = st1.nextToken();
         }
-        aa_list = new ArrayList<>(Arrays.asList(list.split("\\s*,\\s*")));
-        cluster_ps_aa_dict2.put(Integer.valueOf(k), aa_list);
-      }
-      pssm.put(Integer.valueOf(ind2), cluster_ps_aa_dict2);
-    }
-    for (s = 0; s < targetList.size(); s++)
-    {
-      Vector<String> lst_subseqs = extractSubsequences(fasta_dict.get(targetList.get(s)), subseqlen);
-      
-      vector = new Vector<>();
-      if (lst_subseqs.size() >= MIN_SUBSEQUENCE_COUNT)
-      {
-        vector = calculateSignature(lst_subseqs.get(0), vector, pssm, subseqlen);
-        for (int p = 1; p < lst_subseqs.size(); p++)
-        {
-          tmpvect = new Vector<>();
-          tmpvect = calculateSignature(lst_subseqs.get(p), tmpvect, pssm, subseqlen);
-          for (int i = 1; i <= pssm.size(); i++) {
-            if ((vector.get(i)).doubleValue() < (tmpvect.get(i)).doubleValue()) {
-              vector.set(i, tmpvect.get(i));
-            }
+        if (list == null) {
+          continue;
+        }
+        String[] aaTokens = list.split("\\s*,\\s*");
+        for (int idx = 0; idx + 1 < aaTokens.length; idx += 2) {
+          int aaIndex = toAminoAcidIndex(aaTokens[idx]);
+          if (aaIndex >= 0) {
+            weights[cluster][position][aaIndex] = parseDoubleSafe(aaTokens[idx + 1]);
           }
         }
-        for (int i = 1; i <= pssm.size(); i++) {
-          if ((vector.get(i)).doubleValue() < signifThreshold) {
-            vector.set(i, Double.valueOf(0.0D));
-          } else {
-            vector.set(i, Double.valueOf(Math.exp((vector.get(i)).doubleValue() / subseqlen)));
-          }
-        }
-        result.add(vector);
-        numConverted++;
       }
     }
-    writeVectors(ECNumber, result, numConverted, time, ROOTPATH, tempDir);
-    return 0.0F;
+    return new PSSMProfile(weights);
   }
-  
-  public static void writeVectors(String ECNumber, Vector<Vector<Double>> result, int numvect, long time, String ROOTPATH, String tempDir)
+
+  private static double parseDoubleSafe(String value) {
+    try {
+      return Double.parseDouble(value);
+    } catch (NumberFormatException ex) {
+      return 0.0D;
+    }
+  }
+
+  private static int toAminoAcidIndex(String token) {
+    if (token == null || token.isEmpty()) {
+      return -1;
+    }
+    char c = Character.toUpperCase(token.charAt(0));
+    if (c < 'A' || c > 'Z') {
+      return -1;
+    }
+    return AA_INDEX[c - 'A'];
+  }
+
+  private static double[] computeBestScores(String sequence, PSSMProfile profile, int subseqlen) {
+    int clusterCount = profile.weights.length;
+    if (clusterCount == 0 || sequence.length() < subseqlen || sequence.length() < MIN_SUBSEQUENCE_COUNT) {
+      return null;
+    }
+
+    double[] bestScores = new double[clusterCount];
+    Arrays.fill(bestScores, Double.NEGATIVE_INFINITY);
+    char[] chars = sequence.toCharArray();
+    int[] aaIdxBuffer = new int[subseqlen];
+
+    for (int start = 0; start <= chars.length - subseqlen; start++)
+    {
+      boolean valid = true;
+      for (int offset = 0; offset < subseqlen; offset++)
+      {
+        char residue = Character.toUpperCase(chars[start + offset]);
+        if (residue < 'A' || residue > 'Z') {
+          valid = false;
+          break;
+        }
+        int aaIndex = AA_INDEX[residue - 'A'];
+        if (aaIndex < 0) {
+          valid = false;
+          break;
+        }
+        aaIdxBuffer[offset] = aaIndex;
+      }
+
+      if (!valid) {
+        continue;
+      }
+
+      for (int cluster = 0; cluster < clusterCount; cluster++)
+      {
+        double sum = 0.0D;
+        double[][] clusterWeights = profile.weights[cluster];
+        for (int position = 0; position < subseqlen; position++)
+        {
+          sum += clusterWeights[position][aaIdxBuffer[position]];
+        }
+        if (sum > bestScores[cluster]) {
+          bestScores[cluster] = sum;
+        }
+      }
+    }
+
+    boolean hasValid = false;
+    for (double score : bestScores) {
+      if (score != Double.NEGATIVE_INFINITY) {
+        hasValid = true;
+        break;
+      }
+    }
+    if (!hasValid) {
+      return null;
+    }
+    return bestScores;
+  }
+
+  private static void applySignificanceThreshold(double[] scores, int signifThreshold, int subseqlen) {
+    for (int i = 0; i < scores.length; i++) {
+      double value = scores[i];
+      if (value == Double.NEGATIVE_INFINITY || value < signifThreshold) {
+        scores[i] = 0.0D;
+      } else {
+        scores[i] = Math.exp(value / subseqlen);
+      }
+    }
+  }
+
+  public static void writeVectors(String ECNumber, List<double[]> result, long time, String tempDir)
     throws IOException
   {
-    PrintWriter final_file = new PrintWriter(tempDir + "/testResult/" + time + File.separator + ECNumber + "/spmap/test.vec", "UTF-8");
-    for (int i = 1; i <= numvect; i++)
-    {
-      String f_l = "1 ";
-      for (int key = 1; key < (result.get(1)).size(); key++) {
-        f_l = f_l + key + ":" + (result.get(i)).get(key) + " ";
+    Path outputPath = Paths.get(tempDir, "testResult", String.valueOf(time), ECNumber, "spmap", "test.vec");
+    Files.createDirectories(outputPath.getParent());
+    try (BufferedWriter writer = Files.newBufferedWriter(outputPath, StandardCharsets.UTF_8)) {
+      for (double[] vector : result)
+      {
+        StringBuilder sb = new StringBuilder("1");
+        for (int key = 0; key < vector.length; key++) {
+          sb.append(' ').append(key + 1).append(':').append(vector[key]);
+        }
+        writer.write(sb.toString());
+        writer.newLine();
       }
-      final_file.println(f_l);
     }
-    final_file.close();
+  }
+
+  private static class PSSMProfile {
+    private final double[][][] weights;
+
+    private PSSMProfile(double[][][] weights) {
+      this.weights = weights;
+    }
   }
   
   public static HashMap<String, Integer> readBLOSUM62Matrix()

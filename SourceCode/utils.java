@@ -5,7 +5,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -164,43 +163,87 @@ public class utils {
 	  }
 
 	public static void calculateConfidence(String ppf, String npf, String pf, String cf) throws IOException{
-		List<String> pos = Files.readAllLines(Paths.get(ppf));
-		List<String> neg = Files.readAllLines(Paths.get(npf));
-		List<String> preds = Files.readAllLines(Paths.get(pf));
+		List<String> posLines = Files.readAllLines(Paths.get(ppf));
+		List<String> negLines = Files.readAllLines(Paths.get(npf));
+		List<String> predLines = Files.readAllLines(Paths.get(pf));
 
-		 int closer2pos;
-		Vector<Double> confs = new Vector<>();
-		for(int i = 0; i < preds.size(); i++){
-			if(preds.get(i)== "0")
-				confs.add(0.5);
-			closer2pos = 0;
-			for(int j = 0; j < pos.size(); j++){
-				if (Double.parseDouble(pos.get(j)) <= Double.parseDouble(preds.get(i)))
-					break;
-				closer2pos += 1;
+		double[] pos = toDoubleArray(posLines);
+		double[] neg = toDoubleArray(negLines);
+		double[] confs = new double[predLines.size()];
+
+		for (int i = 0; i < predLines.size(); i++) {
+			double value = parseDouble(predLines.get(i));
+			if (Double.isNaN(value)) {
+				confs[i] = 0.5;
+				continue;
 			}
-			double posconf =  ((double)(pos.size() - closer2pos) / pos.size());
-			
-			closer2pos = 0;
-			for(int j = 0; j < neg.size(); j++){
-				if (Double.parseDouble(neg.get(j)) < Double.parseDouble(preds.get(i)))
-					break;
-				closer2pos += 1;
+
+			double posConf = pos.length == 0 ? 0.5 : calculatePositiveConfidence(pos, value);
+			double negConf = neg.length == 0 ? 0.5 : calculateNegativeConfidence(neg, value);
+			double denom = posConf + negConf;
+			confs[i] = denom == 0.0 ? 0.5 : posConf / denom;
+		}
+
+		try (PrintWriter final_file = new PrintWriter(cf, "UTF-8")) {
+			for (double conf : confs) {
+				final_file.println(conf);
 			}
-			double negconf =  ((double)closer2pos/ neg.size());
-			
-			if (posconf + negconf == 0)
-					confs.add(0.5);
-			else
-					confs.add(posconf / (posconf + negconf));
 		}
-	
-		PrintWriter final_file = new PrintWriter(cf, "UTF-8");
-		for(int i=0; i<confs.size(); i++){
-			final_file.println(confs.get(i));
-		}
-		final_file.close();
 		
+	}
+
+	private static double[] toDoubleArray(List<String> values) {
+		double[] array = new double[values.size()];
+		for (int i = 0; i < values.size(); i++) {
+			array[i] = parseDouble(values.get(i));
+		}
+		return array;
+	}
+
+	private static double parseDouble(String value) {
+		try {
+			return Double.parseDouble(value.trim());
+		} catch (NumberFormatException ex) {
+			return Double.NaN;
+		}
+	}
+
+	private static double calculatePositiveConfidence(double[] pos, double value) {
+		int index = lowerBoundDescending(pos, value);
+		return (pos.length - index) / (double) pos.length;
+	}
+
+	private static double calculateNegativeConfidence(double[] neg, double value) {
+		int index = upperBoundDescending(neg, value);
+		return index / (double) neg.length;
+	}
+
+	private static int lowerBoundDescending(double[] array, double value) {
+		int low = 0;
+		int high = array.length;
+		while (low < high) {
+			int mid = (low + high) >>> 1;
+			if (array[mid] <= value) {
+				high = mid;
+			} else {
+				low = mid + 1;
+			}
+		}
+		return low;
+	}
+
+	private static int upperBoundDescending(double[] array, double value) {
+		int low = 0;
+		int high = array.length;
+		while (low < high) {
+			int mid = (low + high) >>> 1;
+			if (array[mid] < value) {
+				high = mid;
+			} else {
+				low = mid + 1;
+			}
+		}
+		return low;
 	}
 	
 	public static void main(String[] args) throws IOException {

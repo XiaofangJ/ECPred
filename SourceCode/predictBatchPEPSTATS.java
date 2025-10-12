@@ -17,7 +17,6 @@ public class predictBatchPEPSTATS
   public static void main(String[] args, Vector<String> ecnums, long time, String ROOTPATH, String fastaFile, String tempDir)
     throws IOException, InterruptedException
   {
-    String predictProg = ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/svmlight/svm_classify";
     String method = "pepstats";
     
     // Parallelize EC processing
@@ -83,26 +82,14 @@ public class predictBatchPEPSTATS
           fasta2Pepstats_noscale.parse_pepstats(cmdArray[4], ecnum, "1", time, ROOTPATH, tempDir);
           File deletefile = new File(cmdArray[4]);
           deletefile.delete();
-          cmdArray = new String[1];
-          PrintWriter scalefile = new PrintWriter(tempDir + File.separator + "testResult" + File.separator + time + File.separator + time + "_" + ecnum + ".sh", "UTF-8");
-          scalefile.println("#!/bin/bash");
-          scalefile.println(ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/" + LIBSVM_VERSION + "/svm-scale -r " + ROOTPATH + "/" + ecnum + "/pepstats/rangefile " + batchSVM + " > " + batchVect + " 2> /dev/null");
-          scalefile.close();
-          cmd = "chmod +x " + tempDir + File.separator + "testResult" + File.separator + time + File.separator + time + "_" + ecnum + ".sh";
-          pb = new ProcessBuilder(cmd.split(" "));
-          process = pb.start();
-          try
-          {
-            process.waitFor();
-            int j = process.exitValue();
-          }
-          catch (InterruptedException e)
-          {
-            System.out.print("svm-scale is not working!");
-            e.printStackTrace();
-          }
-          cmd = tempDir + File.separator + "testResult" + File.separator + time + File.separator + time + "_" + ecnum + ".sh";
-          pb = new ProcessBuilder(new String[] { cmd });
+          
+          // Run svm-scale directly without shell script to avoid race conditions
+          String scaleCmd = ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/" + LIBSVM_VERSION + "/svm-scale";
+          String rangeFileArg = ROOTPATH + "/" + ecnum + "/pepstats/rangefile";
+          
+          pb = new ProcessBuilder(scaleCmd, "-r", rangeFileArg, batchSVM);
+          pb.redirectOutput(new File(batchVect));
+          pb.redirectError(ProcessBuilder.Redirect.DISCARD);
           
           process = pb.start();
           try
@@ -112,23 +99,13 @@ public class predictBatchPEPSTATS
           }
           catch (InterruptedException e)
           {
-            System.out.print("Svm_classify is not working!");
+            System.out.print("svm-scale is not working!");
             e.printStackTrace();
           }
-          cmd = predictProg + " " + batchVect + " " + modelfile + " " + predFile;
-          pb = new ProcessBuilder(cmd.split(" "));
           
-          process = pb.start();
-          try
-          {
-            process.waitFor();
-            int m = process.exitValue();
-          }
-          catch (InterruptedException e)
-          {
-            System.out.print("Svm_classify is not working!");
-            e.printStackTrace();
-          }
+          // Use in-JVM SVM classifier instead of external process
+          SVMLightClassifier.classify(batchVect, modelfile, predFile);
+          
           utils u = new utils();
           utils.calculateConfidence(posPredFile, negPredFile, predFile, confFile);
         } catch (Exception e) {
