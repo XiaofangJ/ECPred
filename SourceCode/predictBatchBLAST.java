@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.Vector;
+import java.util.concurrent.*;
+import java.util.ArrayList;
 
 
 
@@ -52,97 +54,122 @@ import java.util.Vector;
 	    return fasta_dict;
 	  }
 	  
-	  public static void main(String[] args, Vector<String> ecnums, long time, String ROOTPATH, List<String> test_ids, String fastaFile, String tempDir)
-	    throws IOException, InterruptedException
-	  {
-	    int k = 5;
-	    int evalue = 20;
-	    
-	    String method = "blast";
-	    HashMap<String, String> fasta_dict = new HashMap<>();
-	    for (int i = 0; i < ecnums.size(); i++)
-	    {
-	      HashMap<String, List<List<String>>> simHashHash = new HashMap<>();
-	      
-	      String path = ROOTPATH + File.separator + ecnums.get(i) + File.separator + method;
-	      String testpath = tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + method;
-	      
-	      File workdir = new File(testpath);
-	      workdir.mkdirs();
-	      List<String> pos = Files.readAllLines(Paths.get(ROOTPATH + File.separator + ecnums.get(i) + "/positive.ids", new String[0]));
-	      List<String> neg = Files.readAllLines(Paths.get(ROOTPATH + File.separator + ecnums.get(i) + "/negative.ids", new String[0]));
-	      String predFile = workdir + File.separator + ecnums.get(i) + ".preds";
-	      String confFile = workdir + File.separator + ecnums.get(i) + ".confs";
-	      
-	      String posPredFile = path + File.separator + "ppreds.txt";
-	      String negPredFile = path + File.separator + "npreds.txt";
-	      
-	      String[] cmdArray = new String[11];
-	      
-	      cmdArray[0] = (ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/ncbi-blast-2.7.1+/bin/blastp");
-	      
-	      cmdArray[1] = "-query";
-	      
-	      cmdArray[2] = fastaFile;
-	      
-	      cmdArray[3] = "-db";
-	      
-	      cmdArray[4] = (ROOTPATH + "/" + ecnums.get(i) + File.separator + "blast" + File.separator + ecnums.get(i) + ".blastdb");
-	      
-	      cmdArray[5] = "-outfmt";
-	      
-	      cmdArray[6] = "6";
-	      
-	      cmdArray[7] = "-out";
-	      
-	      cmdArray[8] = (workdir + File.separator + "blast.out");
-	      
-	      cmdArray[9] = "-evalue";
-	      
-	      cmdArray[10] = String.valueOf(evalue);
-	      
-	      String cmd = ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/ncbi-blast-2.7.1+/bin/blastp -query " + fastaFile + " -db " + 
-	        ROOTPATH + "/" + ecnums.get(i) + File.separator + "blast" + File.separator + ecnums.get(i) + ".blastdb" + 
-	        " -outfmt 6 -out " + workdir + File.separator + "blast.out -evalue " + String.valueOf(evalue);
-	      ProcessBuilder pb = new ProcessBuilder(cmd.split(" "));
-	      
-	      Process process = pb.start();
-	      try
-	      {
-	        process.waitFor();
-	        int exitVal = process.exitValue();
-	      }
-	      catch (InterruptedException e)
-	      {
-	        System.out.print("blastp is not working!");
-	        e.printStackTrace();
-	      }
-	      Blast blast = new Blast();
-	      Vector<Double> preds = new Vector<>();
-	      
-	      List<String> blastLines = Files.readAllLines(Paths.get(cmdArray[8], new String[0]));
-	      if (blastLines.size() == 0)
-	      {
-	        preds.add(Double.valueOf(0.0D));
-	      }
-	      else
-	      {
-	        simHashHash = Blast.parseTabBlast(cmdArray[8]);
-	        preds = new Vector<>();
-	        for (int m = 0; m < test_ids.size(); m++)
-	        {
-	          double pred = Blast.blastknn(simHashHash.get(test_ids.get(m)), pos, neg, k);
-	          preds.add(Double.valueOf(pred));
-	        }
-	      }
-	      PrintWriter final_file = new PrintWriter(predFile, "UTF-8");
-	      for (int a = 0; a < preds.size(); a++) {
-	        final_file.println(preds.get(a));
-	      }
-	      final_file.close();
-	      
-	      utils u = new utils();
-	      utils.calculateConfidence(posPredFile, negPredFile, predFile, confFile);
-	    }
-	  }
-	}
+  public static void main(String[] args, Vector<String> ecnums, long time, String ROOTPATH, List<String> test_ids, String fastaFile, String tempDir, int blastThreads)
+    throws IOException, InterruptedException
+  {
+    int k = 5;
+    int evalue = 20;
+    
+    String method = "blast";
+    HashMap<String, String> fasta_dict = new HashMap<>();
+    
+    // Parallelize EC processing
+    ParallelExecutor executor = ParallelExecutor.getInstance();
+    List<Callable<Void>> ecTasks = new ArrayList<>();
+    
+    for (int i = 0; i < ecnums.size(); i++)
+    {
+      final int ecIndex = i;
+      final String ecnum = ecnums.get(ecIndex);
+      
+      ecTasks.add(() -> {
+        try {
+          HashMap<String, List<List<String>>> simHashHash = new HashMap<>();
+          
+          String path = ROOTPATH + File.separator + ecnum + File.separator + method;
+          String testpath = tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnum + File.separator + method;
+          
+          File workdir = new File(testpath);
+          workdir.mkdirs();
+          List<String> pos = Files.readAllLines(Paths.get(ROOTPATH + File.separator + ecnum + "/positive.ids", new String[0]));
+          List<String> neg = Files.readAllLines(Paths.get(ROOTPATH + File.separator + ecnum + "/negative.ids", new String[0]));
+          String predFile = workdir + File.separator + ecnum + ".preds";
+          String confFile = workdir + File.separator + ecnum + ".confs";
+          
+          String posPredFile = path + File.separator + "ppreds.txt";
+          String negPredFile = path + File.separator + "npreds.txt";
+          
+          String[] cmdArray = new String[11];
+          
+          cmdArray[0] = (ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/ncbi-blast-2.7.1+/bin/blastp");
+          
+          cmdArray[1] = "-query";
+          
+          cmdArray[2] = fastaFile;
+          
+          cmdArray[3] = "-db";
+          
+          cmdArray[4] = (ROOTPATH + "/" + ecnum + File.separator + "blast" + File.separator + ecnum + ".blastdb");
+          
+          cmdArray[5] = "-outfmt";
+          
+          cmdArray[6] = "6";
+          
+          cmdArray[7] = "-out";
+          
+          cmdArray[8] = (workdir + File.separator + "blast.out");
+          
+          cmdArray[9] = "-evalue";
+          
+          cmdArray[10] = String.valueOf(evalue);
+          
+          String cmd = ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/ncbi-blast-2.7.1+/bin/blastp -query " + fastaFile + " -db " + 
+            ROOTPATH + "/" + ecnum + File.separator + "blast" + File.separator + ecnum + ".blastdb" + 
+            " -outfmt 6 -out " + workdir + File.separator + "blast.out -evalue " + String.valueOf(evalue) +
+            " -num_threads " + blastThreads;
+          ProcessBuilder pb = new ProcessBuilder(cmd.split(" "));
+          
+          Process process = pb.start();
+          try
+          {
+            process.waitFor();
+            int exitVal = process.exitValue();
+          }
+          catch (InterruptedException e)
+          {
+            System.out.print("blastp is not working!");
+            e.printStackTrace();
+          }
+          Blast blast = new Blast();
+          Vector<Double> preds = new Vector<>();
+          
+          List<String> blastLines = Files.readAllLines(Paths.get(cmdArray[8], new String[0]));
+          if (blastLines.size() == 0)
+          {
+            preds.add(Double.valueOf(0.0D));
+          }
+          else
+          {
+            simHashHash = Blast.parseTabBlast(cmdArray[8]);
+            preds = new Vector<>();
+            for (int m = 0; m < test_ids.size(); m++)
+            {
+              double pred = Blast.blastknn(simHashHash.get(test_ids.get(m)), pos, neg, k);
+              preds.add(Double.valueOf(pred));
+            }
+          }
+          PrintWriter final_file = new PrintWriter(predFile, "UTF-8");
+          for (int a = 0; a < preds.size(); a++) {
+            final_file.println(preds.get(a));
+          }
+          final_file.close();
+          
+          utils u = new utils();
+          utils.calculateConfidence(posPredFile, negPredFile, predFile, confFile);
+        } catch (Exception e) {
+          System.err.println("Error processing EC " + ecnum + " in BLAST: " + e.getMessage());
+          e.printStackTrace();
+        }
+        return null;
+      });
+    }
+    
+    // Execute all EC tasks in parallel
+    try {
+      executor.executeECClassLevel(ecTasks);
+    } catch (ExecutionException e) {
+      System.err.println("Error executing parallel BLAST EC processing: " + e.getMessage());
+      throw new IOException("Parallel BLAST execution failed", e);
+    }
+  }
+}
