@@ -18,6 +18,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.Vector;
+import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class runEC {
 
@@ -32,13 +35,42 @@ public class runEC {
 		// Load thresholds
 		HashMap<String, Double> thresholds = loadThresholds(ROOTPATH);
 		
-		// Process results for each EC number
-		for (int i = 0; i < ecnums.size(); i++) {
-			String testDir = tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i) + File.separator + "preds";
-			createTestDirectory(testDir);
-			
-			Vector<String> combined = loadAndCombinePredictions(method, tempDir, time, ecnums.get(i), ROOTPATH, idlist);
-			writePredictionFile(combined, tempDir, time, ecnums.get(i), idlist);
+		// Process results for each EC number in parallel
+		ParallelExecutor executor = ParallelExecutor.getInstance();
+		List<Callable<Void>> ecTasks = new ArrayList<>();
+		
+		// Modify EC class-level parallelization to use batch processing
+		List<List<String>> ecBatches = new ArrayList<>();
+		int batchSize = 5; // Process 5 EC classes per batch
+		for (int i = 0; i < ecnums.size(); i += batchSize) {
+			ecBatches.add(ecnums.subList(i, Math.min(i + batchSize, ecnums.size())));
+		}
+
+		List<Callable<Void>> ecBatchTasks = new ArrayList<>();
+		for (List<String> batch : ecBatches) {
+			ecBatchTasks.add(() -> {
+				for (String ecnum : batch) {
+					try {
+						String testDir = tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnum + File.separator + "preds";
+						createTestDirectory(testDir);
+						
+						Vector<String> combined = loadAndCombinePredictions(method, tempDir, time, ecnum, ROOTPATH, idlist);
+						writePredictionFile(combined, tempDir, time, ecnum, idlist);
+					} catch (Exception e) {
+						System.err.println("Error processing EC number " + ecnum + ": " + e.getMessage());
+						e.printStackTrace();
+					}
+				}
+				return null;
+			});
+		}
+		
+		// Execute all EC batch processing in parallel
+		try {
+			executor.executeECClassLevel(ecBatchTasks);
+		} catch (ExecutionException e) {
+			System.err.println("Error executing parallel EC batch processing: " + e.getMessage());
+			throw new IOException("Parallel EC batch execution failed", e);
 		}
 		
 		// Process main class or subclass predictions
@@ -59,10 +91,51 @@ public class runEC {
 		} else if (method.equals("pepstats")) {
 			predictBatchPEPSTATS.main(args, ecnums, time, ROOTPATH, fastaFile, tempDir);
 		} else if (method.equals("weighted")) {
-			// Run all three methods for weighted approach
-			predictBatchSPMAP.main(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir);
-			predictBatchBLAST.main(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir);
-			predictBatchPEPSTATS.main(args, ecnums, time, ROOTPATH, fastaFile, tempDir);
+			// Run all three methods in parallel for weighted approach
+			ParallelExecutor executor = ParallelExecutor.getInstance();
+			
+			List<Callable<Void>> methodTasks = new ArrayList<>();
+			
+			// BLAST task
+			methodTasks.add(() -> {
+				try {
+					predictBatchBLAST.main(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir);
+				} catch (Exception e) {
+					System.err.println("Error in BLAST prediction: " + e.getMessage());
+					e.printStackTrace();
+				}
+				return null;
+			});
+			
+			// SPMAP task
+			methodTasks.add(() -> {
+				try {
+					predictBatchSPMAP.main(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir);
+				} catch (Exception e) {
+					System.err.println("Error in SPMAP prediction: " + e.getMessage());
+					e.printStackTrace();
+				}
+				return null;
+			});
+			
+			// PEPSTATS task
+			methodTasks.add(() -> {
+				try {
+					predictBatchPEPSTATS.main(args, ecnums, time, ROOTPATH, fastaFile, tempDir);
+				} catch (Exception e) {
+					System.err.println("Error in PEPSTATS prediction: " + e.getMessage());
+					e.printStackTrace();
+				}
+				return null;
+			});
+			
+			// Execute all three methods in parallel
+			try {
+				executor.executeMethodLevel(methodTasks);
+			} catch (ExecutionException e) {
+				System.err.println("Error executing parallel methods: " + e.getMessage());
+				throw new IOException("Parallel method execution failed", e);
+			}
 		}
 	}
 
@@ -164,7 +237,7 @@ public class runEC {
 			allPreds.add(pred);
 		}
 
-		// Process each protein
+		// Process each protein - thread-safe with synchronized blocks
 		for (int i = 0; i < idlist.size(); i++) {
 			Vector<Vector<String>> predswithScore = new Vector<>();
 			Vector<String> preds = new Vector<>();
@@ -193,7 +266,9 @@ public class runEC {
 			}
 			
 			predswithScore.add(preds);
-			predictions.put(idlist.get(i), predswithScore);
+			synchronized(predictions) {
+				predictions.put(idlist.get(i), predswithScore);
+			}
 		}
 	}
 
@@ -220,13 +295,15 @@ public class runEC {
 			preds.add("0");
 		}
 
-		// Add prediction to existing protein's prediction vector
-		if (predictions.containsKey(idlist.get(0))) {
-			predictions.get(idlist.get(0)).add(preds);
-		} else {
-			Vector<Vector<String>> predswithScore = new Vector<>();
-			predswithScore.add(preds);
-			predictions.put(idlist.get(0), predswithScore);
+		// Add prediction to existing protein's prediction vector - thread-safe
+		synchronized(predictions) {
+			if (predictions.containsKey(idlist.get(0))) {
+				predictions.get(idlist.get(0)).add(preds);
+			} else {
+				Vector<Vector<String>> predswithScore = new Vector<>();
+				predswithScore.add(preds);
+				predictions.put(idlist.get(0), predswithScore);
+			}
 		}
 	}
 

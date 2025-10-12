@@ -31,6 +31,8 @@ import java.util.StringTokenizer;
 import java.util.Vector;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ECPred {
 
@@ -94,165 +96,164 @@ public class ECPred {
 		List<String> idlist = createFasta(fastaFile);
 
 
-		HashMap<String, Vector<Vector<String>>> predictions = new HashMap<>();
+		ConcurrentHashMap<String, Vector<Vector<String>>> predictions = new ConcurrentHashMap<>();
 		System.out.println("Main classes of input proteins are being predicted ...");
+		
+		final String finalTempDir = tempDir;
+		final long finalTime = time;
+		final String finalFastaFile = fastaFile;
+		final String finalROOTPATH = ROOTPATH;
+		final String finalMethod = method;
+		final String[] finalArgs = args;
 		
 		createFasta(idlist, fastaFile, "test.fasta", tempDir+File.separator + "testResult" +File.separator + time);
 		String newfasta =  tempDir+File.separator + "testResult" +File.separator + time + File.separator + "test.fasta"; 
-		predictions = runECobj.predictions(args, ROOTPATH, ecnums, time, predictions, idlist, newfasta, tempDir, method);	
-	     for (Map.Entry<String, Vector<Vector<String>>> entry : predictions.entrySet()) {
-	    	  if(entry.getValue().get(0).get(0).equals("non") || entry.getValue().get(0).get(0).equals("nop"))
-	        		continue;
-	    	  if(protID.get(entry.getKey()).length()>81)
-	    		  System.out.println("Subclasses of "+protID.get(entry.getKey()).substring(1,81) + " are being predicted ...");
-    		  else
-    	    	  System.out.println("Subclasses of "+protID.get(entry.getKey()).substring(1,protID.get(entry.getKey()).length()) + " are being predicted ...");
+		
+		// First pass: predict main classes for all proteins
+		HashMap<String, Vector<Vector<String>>> mainPredictions = runECobj.predictions(args, ROOTPATH, ecnums, time, new HashMap<>(), idlist, newfasta, tempDir, method);
+		predictions.putAll(mainPredictions);
+		
+		// Second pass: predict subclasses for each protein in parallel
+		// Prioritize protein-level parallelization by allocating more threads to protein tasks
+		ParallelExecutor executor = ParallelExecutor.getInstance();
+		List<CompletableFuture<Void>> proteinFutures = new ArrayList<>();
 
-	    	  for(int i = 1 ; i<4; i++){
-		        		List<String> ecList = Files.readAllLines(Paths.get(ROOTPATH.substring(0, ROOTPATH.length()-3)+"/subclasses/"+ entry.getValue().get(i-1).get(0) + ".txt"));
-		        		if(ecList.size()==0){
-		        			Vector<String> preds = new Vector<>();
-		        			preds.add("nop");
-		    				preds.add("");
-		        			predictions.get(idlist.get(0)).add(preds);
-		        			break;
-		        		}
+		// Adjust thread allocation for protein-level tasks
+		int proteinThreads = Math.max(4, Runtime.getRuntime().availableProcessors() - 4); // Use at least 4 threads for proteins
+		ExecutorService proteinExecutor = Executors.newFixedThreadPool(proteinThreads);
 
-		        		ecnums = new Vector<>() ;
-		        		ecnums.addAll(ecList);
-		        		idlist = new Vector<String>();
-		        		idlist.add(entry.getKey());
-		        		createFasta(idlist, fastaFile, "test.fasta", tempDir + File.separator + "testResult" + File.separator + time);
-		        		predictions = runECobj.predictions(args, ROOTPATH, ecnums, time, predictions, idlist, newfasta, tempDir, method);	
-		        	
-		        	 if(entry.getValue().get(i).get(0).equals("nop"))
-		        		break;
-		        	
-		        }
-	    	 }
-	     if(output.equals("stdout")==false) {
-	    	 PrintWriter predFile = new PrintWriter(output, "UTF-8");
-				predFile.println("Protein ID\tEC Number\tConfidence Score(max 1.0)");
-				idlist = createFasta(fastaFile);
-				boolean flag = false;
-			      for (int a = 0 ; a < idlist.size(); a++ ) {
-			    	  for (Map.Entry<String, Vector<Vector<String>>> entry : predictions.entrySet()) {
-			    		  if(idlist.get(a).equals(entry.getKey())==false)
-			    			 continue;
-			    		  if(protID.get(entry.getKey()).length()>81)
-			    			  predFile.print(protID.get(entry.getKey()).substring(1,81));
-			    		  else
-			    			  predFile.print(protID.get(entry.getKey()).substring(1,protID.get(entry.getKey()).length()));
-				    	  if(entry.getValue().get(0).get(0).equals("non")){
-					    	  predFile.println("\tnon Enzyme\t"+(1.0-Double.parseDouble(entry.getValue().get(0).get(1))));
-					    	  continue;
-				    	  }
-				    	  if(entry.getValue().get(0).get(0).equals("nop")){
-					    	  predFile.println("\tno Prediction");
-					    	  continue;
-				    	  }
-				    	  for(int i=0; i<4; i++){
-				    		  if(i < entry.getValue().size() && entry.getValue().get(i).get(0).equals("nop")){
-				    			  if(i > 0) {
-				    				  predFile.print("\t"+entry.getValue().get(i-1).get(0)+"\t"+entry.getValue().get(i-1).get(1));
-				    			  } else {
-				    				  predFile.print("\tnop\t0");
-				    			  }
-				    			  flag = true;
-						    	  break;
-				    		  }
-				    		  else if(i >= entry.getValue().size()) {
-				    			  // Not enough prediction levels, use the last available one
-				    			  if(entry.getValue().size() > 0) {
-				    				  predFile.print("\t"+entry.getValue().get(entry.getValue().size()-1).get(0)+"\t"+entry.getValue().get(entry.getValue().size()-1).get(1));
-				    			  } else {
-				    				  predFile.print("\tnop\t0");
-				    			  }
-				    			  flag = true;
-				    			  break;
-				    		  }
-				    		  else
-				    			  continue;
-					    	 
-					    	  
-				    	  }
-				    	  if(flag == false) {
-				    		  if(entry.getValue().size() > 3) {
-				    			  predFile.print("\t"+entry.getValue().get(3).get(0)+"\t"+entry.getValue().get(3).get(1));
-				    		  } else if(entry.getValue().size() > 0) {
-				    			  predFile.print("\t"+entry.getValue().get(entry.getValue().size()-1).get(0)+"\t"+entry.getValue().get(entry.getValue().size()-1).get(1));
-				    		  } else {
-				    			  predFile.print("\tnop\t0");
-				    		  }
-				    	  }
-	  
-				    	  predFile.println();
-							
+		// Declare and initialize the proteinTasks list before adding tasks
+		List<ForkJoinTask<Void>> proteinTasks = new ArrayList<>();
+
+		// Use ForkJoinPool for dynamic task scheduling
+		ForkJoinPool forkJoinPool = new ForkJoinPool(Runtime.getRuntime().availableProcessors());
+
+		// Correctly define and add protein tasks to ForkJoinPool
+		for (Map.Entry<String, Vector<Vector<String>>> entry : predictions.entrySet()) {
+			if (entry.getValue().get(0).get(0).equals("non") || entry.getValue().get(0).get(0).equals("nop"))
+				continue;
+
+			final String proteinKey = entry.getKey();
+			ForkJoinTask<Void> proteinTask = forkJoinPool.submit(() -> {
+				try {
+					synchronized(System.out) {
+						if(protID.get(proteinKey).length()>81)
+							System.out.println("Subclasses of "+protID.get(proteinKey).substring(1,81) + " are being predicted ...");
+						else
+							System.out.println("Subclasses of "+protID.get(proteinKey).substring(1,protID.get(proteinKey).length()) + " are being predicted ...");
+					}
+					
+					for(int i = 1 ; i<4; i++){
+						List<String> ecList = Files.readAllLines(Paths.get(finalROOTPATH.substring(0, finalROOTPATH.length()-3)+"/subclasses/"+ predictions.get(proteinKey).get(i-1).get(0) + ".txt"));
+						if(ecList.size()==0){
+							Vector<String> preds = new Vector<>();
+							preds.add("nop");
+							preds.add("");
+							synchronized(predictions.get(proteinKey)) {
+								predictions.get(proteinKey).add(preds);
 							}
-			    	  flag = false;
-			      }	    
-		      predFile.close();
-	     }
-	     else {
-	    	 System.out.println("Protein ID\tEC Number\tConfidence Score(max 1.0)");
-				idlist = createFasta(fastaFile);
-				boolean flag = false;
-			      for (int a = 0 ; a < idlist.size(); a++ ) {
-			    	  for (Map.Entry<String, Vector<Vector<String>>> entry : predictions.entrySet()) {
-			    		  if(idlist.get(a).equals(entry.getKey())==false)
-			    			 continue;
-			    		  if(protID.get(entry.getKey()).length()>81)
-			    			  System.out.print(protID.get(entry.getKey()).substring(1,81)+"\t");
-			    		  else
-			    			  System.out.print(protID.get(entry.getKey()).substring(1,protID.get(entry.getKey()).length())+"\t");
-				    	  if(entry.getValue().get(0).get(0).equals("non")){
-				    		  System.out.println("non Enzyme\t"+(1.0-Double.parseDouble(entry.getValue().get(0).get(1))));
-					    	  continue;
-				    	  }
-				    	  if(entry.getValue().get(0).get(0).equals("nop")){
-				    		  System.out.println("no Prediction");
-					    	  continue;
-				    	  }
-				    	  for(int i=0; i<4; i++){
-				    		  if(i < entry.getValue().size() && entry.getValue().get(i).get(0).equals("nop")){
-				    			  if(i > 0) {
-				    				  System.out.print(entry.getValue().get(i-1).get(0)+"\t"+entry.getValue().get(i-1).get(1));
-				    			  } else {
-				    				  System.out.print("nop\t0");
-				    			  }
-				    			  flag = true;
-						    	  break;
-				    		  }
-				    		  else if(i >= entry.getValue().size()) {
-				    			  // Not enough prediction levels, use the last available one
-				    			  if(entry.getValue().size() > 0) {
-				    				  System.out.print(entry.getValue().get(entry.getValue().size()-1).get(0)+"\t"+entry.getValue().get(entry.getValue().size()-1).get(1));
-				    			  } else {
-				    				  System.out.print("nop\t0");
-				    			  }
-				    			  flag = true;
-				    			  break;
-				    		  }
-				    		  else
-				    			  continue;
-					    	 
-					    	  
-				    	  }
-				    	  if(flag == false) {
-				    		  if(entry.getValue().size() > 3) {
-				    			  System.out.print(entry.getValue().get(3).get(0)+"\t"+entry.getValue().get(3).get(1));
-				    		  } else if(entry.getValue().size() > 0) {
-				    			  System.out.print(entry.getValue().get(entry.getValue().size()-1).get(0)+"\t"+entry.getValue().get(entry.getValue().size()-1).get(1));
-				    		  } else {
-				    			  System.out.print("nop\t0");
-				    		  }
-				    	  }
-	  
-				    	  	System.out.println();
+							break;
+						}
+
+						Vector<String> ecnumsLocal = new Vector<>() ;
+						ecnumsLocal.addAll(ecList);
+						List<String> idlistLocal = new Vector<String>();
+						idlistLocal.add(proteinKey);
+						
+						// Create temp directory for this protein
+						String proteinTempDir = finalTempDir + File.separator + "testResult" + File.separator + finalTime + "_" + proteinKey.hashCode();
+						synchronized(ECPred.class) {
+							createFasta(idlistLocal, finalFastaFile, "test.fasta", proteinTempDir);
+						}
+						String newfastaLocal = proteinTempDir + File.separator + "test.fasta";
+						
+						HashMap<String, Vector<Vector<String>>> subPredictions = runECobj.predictions(finalArgs, finalROOTPATH, ecnumsLocal, finalTime, new HashMap<>(), idlistLocal, newfastaLocal, proteinTempDir, finalMethod);
+						
+						// Merge subclass predictions
+						if(subPredictions.containsKey(proteinKey)) {
+							Vector<Vector<String>> subPreds = subPredictions.get(proteinKey);
+							if(subPreds.size() > 0) {
+								synchronized(predictions.get(proteinKey)) {
+									predictions.get(proteinKey).addAll(subPreds);
+								}
 							}
-			    	  flag = false;
-			      }	    
-	     }
+						}
+						
+						if(predictions.get(proteinKey).size() > i && predictions.get(proteinKey).get(i).get(0).equals("nop"))
+							break;
+					}
+				} catch (Exception e) {
+					System.err.println("Error predicting subclasses for protein " + entry.getKey() + ": " + e.getMessage());
+					e.printStackTrace();
+				}
+				return null;
+			});
+
+			proteinTasks.add(proteinTask);
+		}
+		
+		// Wait for all protein predictions to complete
+		try {
+			CompletableFuture.allOf(proteinFutures.toArray(new CompletableFuture[0])).join();
+		} catch (Exception e) {
+			System.err.println("Error in parallel protein processing: " + e.getMessage());
+			e.printStackTrace();
+		}
+
+		proteinExecutor.shutdown();
+		
+	     // Wait for all ForkJoin protein tasks to complete before collecting results
+for (ForkJoinTask<Void> task : proteinTasks) {
+    task.join();
+}
+forkJoinPool.shutdown();
+
+// Now collect results for output, ensuring all subclass predictions are present
+Map<String, List<String>> finalResults = new ConcurrentHashMap<>();
+for (String id : idlist) {
+    if (!predictions.containsKey(id)) continue;
+    Vector<Vector<String>> predVec = predictions.get(id);
+    StringBuilder sb = new StringBuilder();
+    if (protID.get(id).length() > 81)
+        sb.append(protID.get(id).substring(1, 81));
+    else
+        sb.append(protID.get(id).substring(1, protID.get(id).length()));
+    if (predVec.get(0).get(0).equals("non")) {
+        sb.append("\tnon Enzyme\t").append(1.0 - Double.parseDouble(predVec.get(0).get(1)));
+    } else if (predVec.get(0).get(0).equals("nop")) {
+        sb.append("\tno Prediction");
+    } else {
+        // Find the most specific (deepest) prediction that is not "nop"
+        int bestIdx = 0;
+        for (int i = 1; i < predVec.size(); i++) {
+            if (!predVec.get(i).get(0).equals("nop") && predVec.get(i).get(0).contains(".")) {
+                bestIdx = i;
+            } else {
+                break;
+            }
+        }
+        sb.append("\t").append(predVec.get(bestIdx).get(0)).append("\t").append(predVec.get(bestIdx).get(1));
+    }
+    finalResults.put(id, List.of(sb.toString()));
+}
+
+if (!output.equals("stdout")) {
+    PrintWriter predFile = new PrintWriter(output, "UTF-8");
+    predFile.println("Protein ID\tEC Number\tConfidence Score(max 1.0)");
+    for (String id : idlist) {
+        if (finalResults.containsKey(id)) {
+            predFile.println(finalResults.get(id).get(0));
+        }
+    }
+    predFile.close();
+} else {
+    System.out.println("Protein ID\tEC Number\tConfidence Score(max 1.0)");
+    for (String id : idlist) {
+        if (finalResults.containsKey(id)) {
+            System.out.println(finalResults.get(id).get(0));
+        }
+    }
+}
 			
 	    		 
 			   Date d2 = new Date();
@@ -269,7 +270,10 @@ public class ECPred {
 				else if(diffDays==0)
 					System.out.println("--- Proteins are predicted in "+diffHours + " hours "+diffMinutes + " minutes "+diffSeconds + " seconds ---");
 				else
-					System.out.print("--- Proteins are predicted in "+diffDays + " days "+diffHours + " hours "+diffMinutes + " minutes "+diffSeconds + " seconds ---");				
+					System.out.print("--- Proteins are predicted in "+diffDays + " days "+diffHours + " hours "+diffMinutes + " minutes "+diffSeconds + " seconds ---");
+				
+				// Shutdown parallel executor
+				ParallelExecutor.getInstance().shutdown();				
 
 	}
 	

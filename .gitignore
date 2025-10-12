@@ -16,3 +16,5 @@ test*.tsv
 # OS generated files
 .DS_Store
 Thumbs.db
+
+run_test.sh
