@@ -27,10 +27,10 @@ public class runEC {
 	private static final String[] METHODS = {"blast", "spmap", "pepstats"};
 	private static final double NON_ENZYME_THRESHOLD = 0.4;
 
-	public HashMap<String, Vector<Vector<String>>> predictions(String[] args, String ROOTPATH, Vector<String> ecnums, long time, HashMap<String, Vector<Vector<String>>> predictions, List<String> idlist, String fastaFile, String tempDir, String method) throws IOException, InterruptedException{	
+	public HashMap<String, Vector<Vector<String>>> predictions(String[] args, String ROOTPATH, Vector<String> ecnums, long time, HashMap<String, Vector<Vector<String>>> predictions, List<String> idlist, String fastaFile, String tempDir, String method, int blastThreads) throws IOException, InterruptedException{ 
 		
 		// Run predictions based on method
-		runPredictionMethods(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir, method);
+	runPredictionMethods(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir, method, blastThreads);
 		
 		// Load thresholds
 		HashMap<String, Double> thresholds = loadThresholds(ROOTPATH);
@@ -39,9 +39,12 @@ public class runEC {
 		ParallelExecutor executor = ParallelExecutor.getInstance();
 		List<Callable<Void>> ecTasks = new ArrayList<>();
 		
-		// Modify EC class-level parallelization to use batch processing
+		// Dynamic batch sizing based on CPU count and EC count
+		// For small EC counts, process individually; for large counts, use batching
+		int cpuCount = Runtime.getRuntime().availableProcessors();
+		int batchSize = Math.max(1, Math.min(10, ecnums.size() / cpuCount));
+		
 		List<List<String>> ecBatches = new ArrayList<>();
-		int batchSize = 5; // Process 5 EC classes per batch
 		for (int i = 0; i < ecnums.size(); i += batchSize) {
 			ecBatches.add(ecnums.subList(i, Math.min(i + batchSize, ecnums.size())));
 		}
@@ -83,58 +86,44 @@ public class runEC {
 		return predictions;
 	}
 
-	private void runPredictionMethods(String[] args, Vector<String> ecnums, long time, String ROOTPATH, List<String> idlist, String fastaFile, String tempDir, String method) throws IOException, InterruptedException {
+	private void runPredictionMethods(String[] args, Vector<String> ecnums, long time, String ROOTPATH, List<String> idlist, String fastaFile, String tempDir, String method, int blastThreads) throws IOException, InterruptedException {
 		if (method.equals("spmap")) {
 			predictBatchSPMAP.main(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir);
 		} else if (method.equals("blast")) {
-			predictBatchBLAST.main(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir);
+			predictBatchBLAST.main(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir, blastThreads);
 		} else if (method.equals("pepstats")) {
 			predictBatchPEPSTATS.main(args, ecnums, time, ROOTPATH, fastaFile, tempDir);
 		} else if (method.equals("weighted")) {
-			// Run all three methods in parallel for weighted approach
-			ParallelExecutor executor = ParallelExecutor.getInstance();
-			
-			List<Callable<Void>> methodTasks = new ArrayList<>();
-			
-			// BLAST task
-			methodTasks.add(() -> {
-				try {
-					predictBatchBLAST.main(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir);
-				} catch (Exception e) {
-					System.err.println("Error in BLAST prediction: " + e.getMessage());
-					e.printStackTrace();
-				}
-				return null;
-			});
-			
-			// SPMAP task
-			methodTasks.add(() -> {
-				try {
-					predictBatchSPMAP.main(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir);
-				} catch (Exception e) {
-					System.err.println("Error in SPMAP prediction: " + e.getMessage());
-					e.printStackTrace();
-				}
-				return null;
-			});
-			
-			// PEPSTATS task
-			methodTasks.add(() -> {
-				try {
-					predictBatchPEPSTATS.main(args, ecnums, time, ROOTPATH, fastaFile, tempDir);
-				} catch (Exception e) {
-					System.err.println("Error in PEPSTATS prediction: " + e.getMessage());
-					e.printStackTrace();
-				}
-				return null;
-			});
-			
-			// Execute all three methods in parallel
+			// If cpu > 12, run SPMAP and PEPSTATS concurrently, BLAST sequentially
 			try {
-				executor.executeMethodLevel(methodTasks);
-			} catch (ExecutionException e) {
-				System.err.println("Error executing parallel methods: " + e.getMessage());
-				throw new IOException("Parallel method execution failed", e);
+				predictBatchBLAST.main(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir, blastThreads);
+				if (blastThreads >= 2) { // cpu > 12
+					Thread spmapThread = new Thread(() -> {
+						try {
+							predictBatchSPMAP.main(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir);
+						} catch (Exception e) {
+							throw new RuntimeException(e);
+						}
+					});
+					Thread pepstatsThread = new Thread(() -> {
+						try {
+							predictBatchPEPSTATS.main(args, ecnums, time, ROOTPATH, fastaFile, tempDir);
+						} catch (Exception e) {
+							throw new RuntimeException(e);
+						}
+					});
+					spmapThread.start();
+					pepstatsThread.start();
+					spmapThread.join();
+					pepstatsThread.join();
+				} else {
+					predictBatchSPMAP.main(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir);
+					predictBatchPEPSTATS.main(args, ecnums, time, ROOTPATH, fastaFile, tempDir);
+				}
+			} catch (Exception e) {
+				System.err.println("Error in weighted method prediction: " + e.getMessage());
+				e.printStackTrace();
+				throw new IOException("Weighted method execution failed", e);
 			}
 		}
 	}

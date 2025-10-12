@@ -13,6 +13,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.Vector;
+import java.util.concurrent.*;
+import java.util.ArrayList;
 
 public class predictBatchSPMAP {
 
@@ -23,43 +25,67 @@ public class predictBatchSPMAP {
 		    int subseqlen = 5;
 		    String predictProg = ROOTPATH.substring(0, ROOTPATH.length() - 3) + "/svmlight/svm_classify";
 		    String method = "spmap";
+		    
+		    // Parallelize EC processing
+		    ParallelExecutor executor = ParallelExecutor.getInstance();
+		    List<Callable<Void>> ecTasks = new ArrayList<>();
+		    
 		    for (int i = 0; i < ecnums.size(); i++)
 		    {
-		      File workdir = new File(tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnums.get(i));
-		      workdir.mkdirs();
-		      String path = ROOTPATH + File.separator + ecnums.get(i) + File.separator + method;
-		      String testpath = workdir + File.separator + method;
-		      String modelfile = path + File.separator + "model.svm";
+		      final int ecIndex = i;
+		      final String ecnum = ecnums.get(ecIndex);
 		      
-		      workdir = new File(testpath);
-		      workdir.mkdirs();
-		      
-		      String predFile = testpath + File.separator + ecnums.get(i) + ".preds";
-		      String confFile = testpath + File.separator + ecnums.get(i) + ".confs";
-		      String batchVect = testpath + File.separator + "test.vec";
-		      
-		      String posPredFile = path + File.separator + "ppreds.txt";
-		      String negPredFile = path + File.separator + "npreds.txt";
-		      
-		      seq2vectPSSMtest seqtest = new seq2vectPSSMtest();
-		      
-		      seq2vectPSSMtest.calculateVectors(sigTh, subseqlen, ecnums.get(i), test_ids, fastaFile, time, ROOTPATH, tempDir);
-		      
-		      String cmd = predictProg + " " + batchVect + " " + modelfile + " " + predFile;
-		      ProcessBuilder pb = new ProcessBuilder(cmd.split(" "));
-		      Process process = pb.start();
-		      try
-		      {
-		        process.waitFor();
-		        int exitVal = process.exitValue();
-		      }
-		      catch (InterruptedException e)
-		      {
-		        System.out.print("Svm_classify is not working!");
-		        e.printStackTrace();
-		      }
-		      utils u = new utils();
-		      utils.calculateConfidence(posPredFile, negPredFile, predFile, confFile);
-		}
+		      ecTasks.add(() -> {
+		        try {
+		          File workdir = new File(tempDir + File.separator + "testResult" + File.separator + time + File.separator + ecnum);
+		          workdir.mkdirs();
+		          String path = ROOTPATH + File.separator + ecnum + File.separator + method;
+		          String testpath = workdir + File.separator + method;
+		          String modelfile = path + File.separator + "model.svm";
+		          
+		          workdir = new File(testpath);
+		          workdir.mkdirs();
+		          
+		          String predFile = testpath + File.separator + ecnum + ".preds";
+		          String confFile = testpath + File.separator + ecnum + ".confs";
+		          String batchVect = testpath + File.separator + "test.vec";
+		          
+		          String posPredFile = path + File.separator + "ppreds.txt";
+		          String negPredFile = path + File.separator + "npreds.txt";
+		          
+		          seq2vectPSSMtest seqtest = new seq2vectPSSMtest();
+		          
+		          seq2vectPSSMtest.calculateVectors(sigTh, subseqlen, ecnum, test_ids, fastaFile, time, ROOTPATH, tempDir);
+		          
+		          String cmd = predictProg + " " + batchVect + " " + modelfile + " " + predFile;
+		          ProcessBuilder pb = new ProcessBuilder(cmd.split(" "));
+		          Process process = pb.start();
+		          try
+		          {
+		            process.waitFor();
+		            int exitVal = process.exitValue();
+		          }
+		          catch (InterruptedException e)
+		          {
+		            System.out.print("Svm_classify is not working!");
+		            e.printStackTrace();
+		          }
+		          utils u = new utils();
+		          utils.calculateConfidence(posPredFile, negPredFile, predFile, confFile);
+		        } catch (Exception e) {
+		          System.err.println("Error processing EC " + ecnum + " in SPMAP: " + e.getMessage());
+		          e.printStackTrace();
+		        }
+		        return null;
+		      });
+		    }
+		    
+		    // Execute all EC tasks in parallel
+		    try {
+		      executor.executeECClassLevel(ecTasks);
+		    } catch (ExecutionException e) {
+		      System.err.println("Error executing parallel SPMAP EC processing: " + e.getMessage());
+		      throw new IOException("Parallel SPMAP execution failed", e);
+		    }
 	}
 }
