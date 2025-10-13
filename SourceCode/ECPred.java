@@ -106,7 +106,33 @@ public class ECPred {
 
 		long t2 = System.currentTimeMillis();
 		HashMap<String, String> protID = checkFasta(fastaFile);
-		List<String> idlist = createFasta(fastaFile);
+		// Build two lists: all protein IDs, and those with length > 40
+		List<String> all_idlist = createFasta(fastaFile);
+		List<String> idlist = new ArrayList<>();
+		HashMap<String, String> protSeqs = new HashMap<>();
+		BufferedReader br = new BufferedReader(new FileReader(fastaFile));
+		String line = br.readLine();
+		String prot_id = "";
+		String fastaString = "";
+		while(line != null ){
+			fastaString = "";
+			line = line.replaceAll("[^\\dA-Za-z ]", "").replaceAll("\\s+", "+");
+			line = line.trim().replaceAll(" +", "");
+			if(line.length()>80)
+				prot_id = line.substring(1, 81);
+			else
+				prot_id  = line.substring(1, line.length());
+			line = br.readLine();
+			while(line != null && !line.startsWith(">")){
+				fastaString+=line;
+				line = br.readLine();
+			}
+			fastaString = fastaString.replaceAll("\s+","");
+			protSeqs.put(prot_id, fastaString);
+			if(fastaString.length()>40)
+				idlist.add(prot_id);
+		}
+		br.close();
 		System.out.println("[TIMER] FASTA parsing: " + (System.currentTimeMillis() - t2) + " ms");
 
 
@@ -209,39 +235,50 @@ public class ECPred {
 	System.out.println("[TIMER] Subclass prediction: " + (System.currentTimeMillis() - t5) + " ms");
 	// Now collect results for output, ensuring all subclass predictions are present
 Map<String, List<String>> finalResults = new ConcurrentHashMap<>();
-for (String id : idlist) {
-    if (!predictions.containsKey(id)) continue;
-    Vector<Vector<String>> predVec = predictions.get(id);
-    StringBuilder sb = new StringBuilder();
-    if (protID.get(id).length() > 81)
-        sb.append(protID.get(id).substring(1, 81));
-    else
-        sb.append(protID.get(id).substring(1, protID.get(id).length()));
+for (String id : all_idlist) {
+	StringBuilder sb = new StringBuilder();
+	if (protID.get(id).length() > 81)
+		sb.append(protID.get(id).substring(1, 81));
+	else
+		sb.append(protID.get(id).substring(1, protID.get(id).length()));
+	if (!idlist.contains(id)) {
+		sb.append("\tSequence too short\t");
+		sb.append("");
+		finalResults.put(id, List.of(sb.toString()));
+		continue;
+	}
+	if (!predictions.containsKey(id)) {
+		sb.append("\tPrediction error\t");
+		sb.append("");
+		finalResults.put(id, List.of(sb.toString()));
+		continue;
+	}
+	Vector<Vector<String>> predVec = predictions.get(id);
 	if (predVec.get(0).get(0).equals("non")) {
 		double conf = Double.parseDouble(predVec.get(0).get(1));
 		sb.append("\tnon Enzyme\t").append(String.format("%.2f", conf));
-    } else if (predVec.get(0).get(0).equals("nop")) {
-        sb.append("\tno Prediction");
-    } else {
-        // Find the most specific (deepest) prediction that is not "nop"
-        int bestIdx = 0;
-        for (int i = 1; i < predVec.size(); i++) {
-            if (!predVec.get(i).get(0).equals("nop") && predVec.get(i).get(0).contains(".")) {
-                bestIdx = i;
-            } else {
-                break;
-            }
-        }
-        sb.append("\t").append(predVec.get(bestIdx).get(0)).append("\t").append(predVec.get(bestIdx).get(1));
-    }
-    finalResults.put(id, List.of(sb.toString()));
+	} else if (predVec.get(0).get(0).equals("nop")) {
+		sb.append("\tno Prediction");
+	} else {
+		// Find the most specific (deepest) prediction that is not "nop"
+		int bestIdx = 0;
+		for (int i = 1; i < predVec.size(); i++) {
+			if (!predVec.get(i).get(0).equals("nop") && predVec.get(i).get(0).contains(".")) {
+				bestIdx = i;
+			} else {
+				break;
+			}
+		}
+		sb.append("\t").append(predVec.get(bestIdx).get(0)).append("\t").append(predVec.get(bestIdx).get(1));
+	}
+	finalResults.put(id, List.of(sb.toString()));
 }
 
 	long t6 = System.currentTimeMillis();
 	if (!output.equals("stdout")) {
 		PrintWriter predFile = new PrintWriter(output, "UTF-8");
 		predFile.println("Protein ID\tEC Number\tConfidence Score(max 1.0)");
-		for (String id : idlist) {
+		for (String id : all_idlist) {
 			if (finalResults.containsKey(id)) {
 				predFile.println(finalResults.get(id).get(0));
 			}
@@ -362,8 +399,7 @@ for (String id : idlist) {
 					if(line==null)
 						 break;
 				   }
-			    if(fastaString.length()>40)
-					idlist.add(prot_id);
+				idlist.add(prot_id);
 			 	
 			}	
 			 br.close();	

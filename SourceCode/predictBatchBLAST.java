@@ -136,7 +136,10 @@ import java.util.ArrayList;
           List<String> blastLines = Files.readAllLines(Paths.get(cmdArray[8], new String[0]));
           if (blastLines.size() == 0)
           {
-            preds.add(Double.valueOf(0.0D));
+            // Add 0.0 prediction for each test protein when BLAST has no hits
+            for (int m = 0; m < test_ids.size(); m++) {
+              preds.add(Double.valueOf(0.0D));
+            }
           }
           else
           {

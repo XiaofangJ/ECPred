@@ -81,15 +81,25 @@ public class seq2vectPSSMtest
     }
 
     List<double[]> vectors = new ArrayList<>();
+    int clusterCount = profile.weights.length;
+    
     for (String targetId : targetList)
     {
       String sequence = fastaDict.get(targetId);
       if (sequence == null || sequence.length() < subseqlen) {
+        // Add a zero vector for short/missing sequences instead of skipping
+        double[] zeroVector = new double[clusterCount];
+        Arrays.fill(zeroVector, 0.0);
+        vectors.add(zeroVector);
         continue;
       }
 
       double[] bestScores = computeBestScores(sequence, profile, subseqlen);
       if (bestScores == null) {
+        // Add a zero vector for sequences that couldn't be processed
+        double[] zeroVector = new double[clusterCount];
+        Arrays.fill(zeroVector, 0.0);
+        vectors.add(zeroVector);
         continue;
       }
 

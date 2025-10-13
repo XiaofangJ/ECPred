@@ -93,6 +93,13 @@ public class fasta2Pepstats_noscale
           line = br.readLine();
           count++;
         }
+        // Add a zero vector for proteins with "None" instead of skipping
+        Vector<String> zeroVector = new Vector<>();
+        for (int i = 0; i < 40; i++) { // pepstats has 40 features
+          zeroVector.add("0.0");
+        }
+        vects.add(vecCount, zeroVector);
+        vecCount++;
         count = 0;
         single = new Vector<>();
       }
