@@ -218,7 +218,7 @@ for (String id : idlist) {
     else
         sb.append(protID.get(id).substring(1, protID.get(id).length()));
 	if (predVec.get(0).get(0).equals("non")) {
-		double conf = 1.0 - Double.parseDouble(predVec.get(0).get(1));
+		double conf = Double.parseDouble(predVec.get(0).get(1));
 		sb.append("\tnon Enzyme\t").append(String.format("%.2f", conf));
     } else if (predVec.get(0).get(0).equals("nop")) {
         sb.append("\tno Prediction");
