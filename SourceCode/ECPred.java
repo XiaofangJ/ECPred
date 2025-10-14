@@ -146,18 +146,18 @@ public class ECPred {
 		final String finalMethod = method;
 		final String[] finalArgs = args;
 		
-		createFasta(idlist, fastaFile, "test.fasta", tempDir+File.separator + "testResult" +File.separator + time);
-		String newfasta =  tempDir + File.separator + "testResult" + File.separator + time + File.separator + "test.fasta"; 
+		createFasta(idlist, fastaFile, "test.fasta", tempDir + File.separator + "testResult" + File.separator + time);
+		String newfasta = tempDir + File.separator + "testResult" + File.separator + time + File.separator + "test.fasta"; 
 		
-	// First pass: predict main classes for all proteins
-	ParallelExecutor.getInstance().setEcClassLevelThreads(userCpuCount);
-	int blastThreads = Math.max(1, userCpuCount / 6);
-	
-	long t4 = System.currentTimeMillis();
-	HashMap<String, Vector<Vector<String>>> mainPredictions = runECobj.predictions(args, ROOTPATH, ecnums, time, new HashMap<>(), idlist, newfasta, tempDir, method, blastThreads);
-	predictions.putAll(mainPredictions);
+		// First pass: predict main classes for all proteins
+		ParallelExecutor.getInstance().setEcClassLevelThreads(userCpuCount);
+		int blastThreads = Math.max(1, userCpuCount / 6);
 		
-	// Second pass: predict subclasses for each protein in parallel
+		long t4 = System.currentTimeMillis();
+		HashMap<String, Vector<Vector<String>>> mainPredictions = runECobj.predictions(args, ROOTPATH, ecnums, time, new HashMap<>(), idlist, newfasta, tempDir, method, blastThreads);
+		predictions.putAll(mainPredictions);
+		
+		// Second pass: predict subclasses for each protein in parallel
 	// Use ParallelExecutor for consistent thread pool management
 	ParallelExecutor executor = ParallelExecutor.getInstance();
 	List<CompletableFuture<Void>> proteinFutures = new ArrayList<>();

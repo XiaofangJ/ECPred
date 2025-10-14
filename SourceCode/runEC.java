@@ -27,10 +27,10 @@ public class runEC {
 	private static final String[] METHODS = {"blast", "spmap", "pepstats"};
 	private static final double NON_ENZYME_THRESHOLD = 0.4;
 
-	public HashMap<String, Vector<Vector<String>>> predictions(String[] args, String ROOTPATH, Vector<String> ecnums, long time, HashMap<String, Vector<Vector<String>>> predictions, List<String> idlist, String fastaFile, String tempDir, String method, int blastThreads) throws IOException, InterruptedException{ 
+	public HashMap<String, Vector<Vector<String>>> predictions(String[] args, String ROOTPATH, Vector<String> ecnums, long time, HashMap<String, Vector<Vector<String>>> predictions, List<String> idlist, String fastaFile, String tempDir, String method, int blastThreads) throws IOException, InterruptedException { 
 		
 		// Run predictions based on method
-	runPredictionMethods(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir, method, blastThreads);
+		runPredictionMethods(args, ecnums, time, ROOTPATH, idlist, fastaFile, tempDir, method, blastThreads);
 		
 		// Load thresholds
 		HashMap<String, Double> thresholds = loadThresholds(ROOTPATH);

@@ -29,17 +29,16 @@ public class ParallelExecutor {
     private ParallelExecutor() {
         // Set thread counts from current userCpuCount
         proteinLevelThreads = userCpuCount;
-    ecClassLevelThreads = userCpuCount;
+        ecClassLevelThreads = userCpuCount;
 
         // Create thread pools with appropriate sizes
         this.proteinLevelExecutor = Executors.newFixedThreadPool(
             proteinLevelThreads,
             new ThreadFactory() {
                 private int counter = 0;
+                @Override
                 public Thread newThread(Runnable r) {
-                    Thread t = new Thread(() -> {
-                        r.run();
-                    }, "ProteinWorker-" + counter++);
+                    Thread t = new Thread(r, "ProteinWorker-" + counter++);
                     t.setDaemon(false);
                     return t;
                 }
@@ -50,10 +49,9 @@ public class ParallelExecutor {
             METHOD_LEVEL_THREADS,
             new ThreadFactory() {
                 private int counter = 0;
+                @Override
                 public Thread newThread(Runnable r) {
-                    Thread t = new Thread(() -> {
-                        r.run();
-                    }, "MethodWorker-" + counter++);
+                    Thread t = new Thread(r, "MethodWorker-" + counter++);
                     t.setDaemon(false);
                     return t;
                 }
@@ -64,10 +62,9 @@ public class ParallelExecutor {
             ecClassLevelThreads,
             new ThreadFactory() {
                 private int counter = 0;
+                @Override
                 public Thread newThread(Runnable r) {
-                    Thread t = new Thread(() -> {
-                        r.run();
-                    }, "ECClassWorker-" + counter++);
+                    Thread t = new Thread(r, "ECClassWorker-" + counter++);
                     t.setDaemon(false);
                     return t;
                 }
@@ -87,8 +84,13 @@ public class ParallelExecutor {
     
     /**
      * Set the number of threads for EC class level execution
+     * Safely recreates the thread pool with the specified thread count.
      */
     public void setEcClassLevelThreads(int newThreads) {
+        if (newThreads < 1) {
+            throw new IllegalArgumentException("Thread count must be at least 1");
+        }
+        
         ecClassLevelThreads = newThreads;
         
         // Shutdown current executor
@@ -99,6 +101,7 @@ public class ParallelExecutor {
             }
         } catch (InterruptedException e) {
             ecClassLevelExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
         }
         
         // Create new executor
@@ -106,10 +109,9 @@ public class ParallelExecutor {
             ecClassLevelThreads,
             new ThreadFactory() {
                 private int counter = 0;
+                @Override
                 public Thread newThread(Runnable r) {
-                    Thread t = new Thread(() -> {
-                        r.run();
-                    }, "ECClassWorker-" + counter++);
+                    Thread t = new Thread(r, "ECClassWorker-" + counter++);
                     t.setDaemon(false);
                     return t;
                 }
@@ -239,8 +241,11 @@ public class ParallelExecutor {
      * Must be called before getInstance() to take effect.
      */
     public static void setUserCpuCount(int cpuCount) {
+        if (cpuCount < 1) {
+            throw new IllegalArgumentException("CPU count must be at least 1");
+        }
         userCpuCount = cpuCount;
         proteinLevelThreads = userCpuCount;
-        ecClassLevelThreads = Math.max(1, userCpuCount / 2);
+        ecClassLevelThreads = userCpuCount;
     }
 }
