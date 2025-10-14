@@ -44,7 +44,7 @@ public class ECPred {
 	      System.out.println("Missing Argument(s)!");
 	      System.out.println("Sample run: java -jar ECPred.jar method inputFile libraryDir tempDir outputFile");
 	      System.out.println("method argument can be one of the followings: blast, spmap, pepstats, weighted");
-	      System.out.println("outputFile is optinal. If you don't specify the output file name the results will be printed to standard output.");
+	      System.out.println("outputFile is optional. If you don't specify the output file name the results will be printed to standard output.");
 	      System.exit(0);
 	    }
 		Date d1 = new Date();
@@ -277,14 +277,14 @@ for (String id : all_idlist) {
 
 	long t6 = System.currentTimeMillis();
 	if (!output.equals("stdout")) {
-		PrintWriter predFile = new PrintWriter(output, "UTF-8");
-		predFile.println("Protein ID\tEC Number\tConfidence Score(max 1.0)");
-		for (String id : all_idlist) {
-			if (finalResults.containsKey(id)) {
-				predFile.println(finalResults.get(id).get(0));
+		try (PrintWriter predFile = new PrintWriter(output, "UTF-8")) {
+			predFile.println("Protein ID\tEC Number\tConfidence Score(max 1.0)");
+			for (String id : all_idlist) {
+				if (finalResults.containsKey(id)) {
+					predFile.println(finalResults.get(id).get(0));
+				}
 			}
 		}
-		predFile.close();
 	} else {
 		System.out.println("Protein ID\tEC Number\tConfidence Score(max 1.0)");
 		for (String id : idlist) {
@@ -310,11 +310,22 @@ for (String id : all_idlist) {
 				System.out.println("--- Proteins are predicted in "+diffMinutes + " minutes "+diffSeconds + " seconds ---");
 			else if(diffDays==0)
 				System.out.println("--- Proteins are predicted in "+diffHours + " hours "+diffMinutes + " minutes "+diffSeconds + " seconds ---");
-				else
-					System.out.print("--- Proteins are predicted in "+diffDays + " days "+diffHours + " hours "+diffMinutes + " minutes "+diffSeconds + " seconds ---");
-				
-				// Shutdown parallel executor
-				ParallelExecutor.getInstance().shutdown();	}
+			else
+				System.out.println("--- Proteins are predicted in "+diffDays + " days "+diffHours + " hours "+diffMinutes + " minutes "+diffSeconds + " seconds ---");
+			
+			// Shutdown parallel executor and clean up temp directories
+			ParallelExecutor.getInstance().shutdown();
+			
+			// Clean up temporary directories
+			try {
+				File tempResultDir = new File(tempDir + File.separator + "testResult" + File.separator + time);
+				if (tempResultDir.exists()) {
+					deleteDirectory(tempResultDir);
+				}
+			} catch (Exception e) {
+				System.err.println("Warning: Could not clean up temporary directory: " + e.getMessage());
+			}
+	}
 	
 	public static boolean deleteDirectory(File directory) {
 	    if(directory.exists()){
@@ -333,134 +344,115 @@ for (String id : all_idlist) {
 	    return(directory.delete());
 	}
 	
-	public static HashMap<String, String> checkFasta( String fasta) throws IOException{
-		HashMap<String, String> protID_Full = new HashMap<>();
-		BufferedReader br = new BufferedReader(new FileReader(fasta));	
-		List<String> idlist = new ArrayList<String>();
-		String orjinal_line,line = br.readLine(), fastaString = "";
-		String prot_id;
-		 while(line != null ){
-			 fastaString = "";
-			 if(line.startsWith(">")==false){
+	public static HashMap<String, String> checkFasta(String fasta) throws IOException {
+		HashMap<String, String> protIdFull = new HashMap<>();
+		try (BufferedReader br = new BufferedReader(new FileReader(fasta))) {
+			String originalLine, line = br.readLine(), fastaString = "";
+			String protId;
+			while (line != null) {
+				fastaString = "";
+				if (!line.startsWith(">")) {
 					System.out.println("Wrong input! Sequences should start with \">\" character.");
 					System.exit(0);
 				}
-			 orjinal_line = line;
-			 line = line.replaceAll("[^\\dA-Za-z ]", "").replaceAll("\\s+", "+");
-			   line = line.trim().replaceAll(" +", "");
-			   if(line.length()>80)
-					prot_id = line.substring(1, 81);
-			   else
-				   prot_id  = line.substring(1, line.length());
-			 protID_Full.put(prot_id, orjinal_line);
-			line = br.readLine();
-		    while(line.startsWith(">")==false){ // Read sequence lines
-		    	 fastaString+=line;
+				originalLine = line;
+				line = line.replaceAll("[^\\dA-Za-z ]", "").replaceAll("\\s+", "+");
+				line = line.trim().replaceAll(" +", "");
+				if (line.length() > 80)
+					protId = line.substring(1, 81);
+				else
+					protId = line.substring(1, line.length());
+				protIdFull.put(protId, originalLine);
 				line = br.readLine();
-				if(line==null)
-					 break;
-			   }
-		    fastaString = fastaString.replaceAll("\\s+","");
-		    Pattern p = Pattern.compile("[^A-Z ]", Pattern.CASE_INSENSITIVE);
-		      Matcher m = p.matcher(fastaString);
-		      boolean flag =false;
-		      while (m.find()) {
-		         System.out.println("Fasta sequence contains special character at position "  + m.start() + ": " + fastaString.charAt(m.start()) + " Your fasta: "+fastaString);
-		         flag = true;
-		      }
-		      if(flag== true){
-			      System.exit(0);
-		      }
-		}	
-		 br.close();
-		return protID_Full;
-		
+				while (line != null && !line.startsWith(">")) { // Read sequence lines
+					fastaString += line;
+					line = br.readLine();
+				}
+				fastaString = fastaString.replaceAll("\\s+", "");
+				Pattern p = Pattern.compile("[^A-Z ]", Pattern.CASE_INSENSITIVE);
+				Matcher m = p.matcher(fastaString);
+				boolean flag = false;
+				while (m.find()) {
+					System.out.println("Fasta sequence contains special character at position " + m.start() + ": " + fastaString.charAt(m.start()) + " Your fasta: " + fastaString);
+					flag = true;
+				}
+				if (flag) {
+					System.exit(0);
+				}
+			}
+		}
+		return protIdFull;
 	}
 
 	
-	public static List<String> createFasta( String fasta) throws IOException{
-		String prot_id = "";
-		BufferedReader br = new BufferedReader(new FileReader(fasta));	
-		List<String> idlist = new ArrayList<String>();
-		String line = br.readLine(), fastaString = "";
-		
-		 while(line != null ){
-				 fastaString = "";
+	public static List<String> createFasta(String fasta) throws IOException {
+		List<String> idList = new ArrayList<>();
+		try (BufferedReader br = new BufferedReader(new FileReader(fasta))) {
+			String protId = "";
+			String line = br.readLine(), fastaString = "";
 			
-				   line = line.replaceAll("[^\\dA-Za-z ]", "").replaceAll("\\s+", "+");
-				   line = line.trim().replaceAll(" +", "");
-				  if(line.length()>80)
-						prot_id = line.substring(1, 81);
-				   else
-					   prot_id  = line.substring(1, line.length());
+			while (line != null) {
+				fastaString = "";
+				line = line.replaceAll("[^\\dA-Za-z ]", "").replaceAll("\\s+", "+");
+				line = line.trim().replaceAll(" +", "");
+				if (line.length() > 80)
+					protId = line.substring(1, 81);
+				else
+					protId = line.substring(1, line.length());
 				line = br.readLine();
-			    while(line.startsWith(">")==false){//until > add sequence 
-			    	 fastaString+=line;
+				while (line != null && !line.startsWith(">")) { // until > add sequence 
+					fastaString += line;
 					line = br.readLine();
-					if(line==null)
-						 break;
-				   }
-				idlist.add(prot_id);
-			 	
-			}	
-			 br.close();	
-		 return idlist;
+				}
+				idList.add(protId);
+			}
+		}
+		return idList;
 	}
 
-	public static void createFasta( List<String> lst_training_ids,String fasta, String outf, String file) throws IOException{
-		File workdir = new File(file);
-		workdir.mkdirs();
-		PrintWriter final_file = new PrintWriter(file+"/"+outf, "UTF-8");
-		String prot_id = "";
-		BufferedReader br = new BufferedReader(new FileReader(fasta));	
-		HashMap<String, String> fastaArray = new HashMap<>();
-		Vector<String> fastaWrite = new Vector<>();
-		StringTokenizer st1;
-		String line = br.readLine(), fastaString = "";
-		int i=0;
-		 while(line != null ){
-			 fastaString = "";
-			   line = line.replaceAll("[^\\dA-Za-z ]", "").replaceAll("\\s+", "+");
-			   line = line.trim().replaceAll(" +", "");
-
-					   if(line.length()>80)
-							prot_id = line.substring(1, 81);
-					   else
-						   prot_id  = line.substring(1, line.length());
+	public static void createFasta(List<String> trainingIds, String fasta, String outFile, String outputDir) throws IOException {
+		File workDir = new File(outputDir);
+		workDir.mkdirs();
+		try (BufferedReader br = new BufferedReader(new FileReader(fasta));
+		     PrintWriter writer = new PrintWriter(outputDir + "/" + outFile, "UTF-8")) {
+			HashMap<String, String> fastaArray = new HashMap<>();
+			String protId = "";
+			String line = br.readLine(), fastaString = "";
 			
-					   fastaString+=">"+prot_id+"\n";
-			 
-			 
-		 if(lst_training_ids.contains(prot_id)){ 
-			line = br.readLine();
-		    while(line.startsWith(">")==false){//until > add sequence 
-		    	 fastaString+=line;
-				line = br.readLine();
-				if(line==null)
-					 break;
-			   }
-			fastaArray.put(prot_id,fastaString);
-		 	} 
-		 else{
-				line = br.readLine();
-			 while(line.startsWith(">")==false){//until > add sequence 
+			while (line != null) {
+				fastaString = "";
+				line = line.replaceAll("[^\\dA-Za-z ]", "").replaceAll("\\s+", "+");
+				line = line.trim().replaceAll(" +", "");
+				
+				if (line.length() > 80)
+					protId = line.substring(1, 81);
+				else
+					protId = line.substring(1, line.length());
+				
+				fastaString += ">" + protId + "\n";
+				
+				if (trainingIds.contains(protId)) {
 					line = br.readLine();
-					if(line==null)
-						 break;
-				   }
-		 }
-		}	
-		 
-		for( i=0; i<lst_training_ids.size();i++){
-			fastaWrite.add(fastaArray.get(lst_training_ids.get(i)));
+					while (line != null && !line.startsWith(">")) { // until > add sequence 
+						fastaString += line;
+						line = br.readLine();
+					}
+					fastaArray.put(protId, fastaString);
+				} else {
+					line = br.readLine();
+					while (line != null && !line.startsWith(">")) { // until > add sequence 
+						line = br.readLine();
+					}
+				}
+			}
+			
+			for (String id : trainingIds) {
+				String fastaEntry = fastaArray.get(id);
+				if (fastaEntry != null) {
+					writer.println(fastaEntry);
+				}
+			}
 		}
-		for( i=0; i<fastaWrite.size();i++){
-			if(fastaWrite.get(i)==null)
-				continue;
-			final_file.println(fastaWrite.get(i));
-		}
-		 br.close();
-		 final_file.close();			 
 	}
 	
 	
