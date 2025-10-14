@@ -150,6 +150,7 @@ public class ECPred {
 		String newfasta =  tempDir + File.separator + "testResult" + File.separator + time + File.separator + "test.fasta"; 
 		
 	// First pass: predict main classes for all proteins
+	ParallelExecutor.getInstance().setEcClassLevelThreads(userCpuCount);
 	int blastThreads = Math.max(1, userCpuCount / 6);
 	
 	long t4 = System.currentTimeMillis();

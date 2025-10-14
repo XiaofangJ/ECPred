@@ -18,18 +18,18 @@ public class ParallelExecutor {
     // Thread pools for different levels
     private final ExecutorService proteinLevelExecutor;
     private final ExecutorService methodLevelExecutor;
-    private final ExecutorService ecClassLevelExecutor;
+    private ExecutorService ecClassLevelExecutor;
     
     // Configuration
     private static int userCpuCount = Runtime.getRuntime().availableProcessors();
     private static int proteinLevelThreads = userCpuCount;
     private static final int METHOD_LEVEL_THREADS = 3; // BLAST, SPMAP, PEPSTATS
-    private static int ecClassLevelThreads = Math.max(1, userCpuCount / 2);
+    private static int ecClassLevelThreads = userCpuCount;
     
     private ParallelExecutor() {
         // Set thread counts from current userCpuCount
         proteinLevelThreads = userCpuCount;
-    ecClassLevelThreads = Math.max(1, userCpuCount / 2);
+    ecClassLevelThreads = userCpuCount;
 
         // Create thread pools with appropriate sizes
         this.proteinLevelExecutor = Executors.newFixedThreadPool(
@@ -83,6 +83,38 @@ public class ParallelExecutor {
             instance = new ParallelExecutor();
         }
         return instance;
+    }
+    
+    /**
+     * Set the number of threads for EC class level execution
+     */
+    public void setEcClassLevelThreads(int newThreads) {
+        ecClassLevelThreads = newThreads;
+        
+        // Shutdown current executor
+        ecClassLevelExecutor.shutdown();
+        try {
+            if (!ecClassLevelExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                ecClassLevelExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            ecClassLevelExecutor.shutdownNow();
+        }
+        
+        // Create new executor
+        ecClassLevelExecutor = Executors.newFixedThreadPool(
+            ecClassLevelThreads,
+            new ThreadFactory() {
+                private int counter = 0;
+                public Thread newThread(Runnable r) {
+                    Thread t = new Thread(() -> {
+                        r.run();
+                    }, "ECClassWorker-" + counter++);
+                    t.setDaemon(false);
+                    return t;
+                }
+            }
+        );
     }
     
     /**
