@@ -63,7 +63,7 @@ public class ECPred {
 	      System.exit(0);
 	    }
 	    String fastaFile = args[1];
-	    String ROOTPATH = args[2] + "lib/EC";
+		String ROOTPATH = java.nio.file.Paths.get(args[2], "lib", "EC").toString();
 	    String file_namepart1 = "";
 	    String file_name;
 	    if (fastaFile.contains("/"))
@@ -127,7 +127,7 @@ public class ECPred {
 				fastaString+=line;
 				line = br.readLine();
 			}
-			fastaString = fastaString.replaceAll("\s+","");
+			fastaString = fastaString.replaceAll("\\s+", "");
 			protSeqs.put(prot_id, fastaString);
 			if(fastaString.length()>40)
 				idlist.add(prot_id);
