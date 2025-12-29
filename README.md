@@ -1,10 +1,10 @@
-## ECPred Version 1.1
+## ECPred Version 1.3.5
  
  [![Latest Github release](https://img.shields.io/badge/version-1.1-blue.svg)](https://github.com/cansyl/ECPred/releases/latest)
 
 ## Dependencies
 
-#### Java 8  
+#### Java 8+ (tested on Java 17)  
 
 For Linux, you can install latest version of Java by running following commands from terminal:
 ```
@@ -63,13 +63,14 @@ These bash scripts will install necessary libraries and tools.
 cd into the ECPred installation folder.
 
 ```
-java -jar ECPred.jar method inputFile libraryDir tempDir outputFile
+java -jar ECPred.jar method inputFile libraryDir tempDir [outputFile] [threads]
 ```
-```method ``` argument can be one of the following: blast, spmap, pepstats, weighted<br />
-```inputFile```  argument is the file that contains protein sequences in fasta format<br />
-```libraryDir``` is the path to the directory where the "lib" folder is located <br />
-```tempDir``` is the path to the directory where the temporary files are located. You may wish to delete these files after you complete your prediction runs. <br />
-```outputFile``` argument is optional. If you don't specify the output file name, the results will be printed to standard output. <br/>
+```method``` can be one of: blast, spmap, pepstats, weighted<br />
+```inputFile``` is a FASTA file containing protein sequences<br />
+```libraryDir``` is the path whose subfolder contains lib/EC and subclasses/<br />
+```tempDir``` is the directory for temporary files; can be cleaned after runs<br />
+```outputFile``` (optional) results path; if omitted, prints to stdout<br/>
+```threads``` (optional) number of CPU threads to use; defaults to available processors<br/>
 
 Sample run <br />
 ```
@@ -86,7 +87,7 @@ There is no limit on the number of protein sequences; however, a single protein 
 
 ## Output
 
-Output is optinal. If you don't specify the output file name, the results will be printed to standard output.
+Output is optional. If you don't specify the output file name, the results will be printed to standard output.
 
 ## Data files
 
